@@ -162,14 +162,22 @@ export function getStockDetail(ticker) {
   };
 }
 
-// Related tickers = other stocks in the same sector, excluding self, top by weight
+// Related tickers = other stocks in the same sector; if fewer than `limit`,
+// pad from the broader universe (largest cap) so the Valeurs à découvrir
+// grid never looks sparse.
 export function relatedStocks(ticker, limit = 4) {
   const s = getStockByTicker(ticker);
   if (!s) return [];
-  return STOCKS
+  const sameSector = STOCKS
     .filter((x) => x.sector === s.sector && x.ticker !== s.ticker)
-    .sort((a, b) => b.marketCapWeight - a.marketCapWeight)
-    .slice(0, limit);
+    .sort((a, b) => b.marketCapWeight - a.marketCapWeight);
+  if (sameSector.length >= limit) return sameSector.slice(0, limit);
+
+  const already = new Set([s.ticker, ...sameSector.map((x) => x.ticker)]);
+  const fillers = STOCKS
+    .filter((x) => !already.has(x.ticker))
+    .sort((a, b) => b.marketCapWeight - a.marketCapWeight);
+  return [...sameSector, ...fillers].slice(0, limit);
 }
 
 // Top movers for the home page (Discover section)

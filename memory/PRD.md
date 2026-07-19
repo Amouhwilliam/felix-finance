@@ -1,59 +1,60 @@
 # Felix — PRD
 
 ## Problem statement
-Build a **frontend-only** mobile-first web app called **Felix** — a stock market heatmap explorer for the BRVM (Bourse Régionale des Valeurs Mobilières, West Africa's regional stock exchange). This is a UI/UX prototype only. No backend, no database, no scraper, no real integrations — hardcoded mock JSON that can be swapped for a real API later. Visual language: Trade Republic (pure black `#000000`, mint accent `#00D084`, red `#FF4D4D` for losses, flat design, SF-style sans-serif, 12–16px radii, generous whitespace).
+Frontend-only Trade-Republic-style stock explorer for the BRVM (Bourse Régionale des Valeurs Mobilières). Home is a squarified heatmap; clicking a cell opens a rich stock page with recommendations, metrics, dividends, events, related stocks. No backend, no real data — clean mock JSON that is easy to swap for a real API later.
 
-## User choices (from ask_human)
-- UI copy language: **French**
-- Show **Felix** branding (in Settings header badge).
+## User choices
+- Language: **French**
+- Show **Felix** wordmark in TopNav
+- v2 (2026-01-19): Refactored from mobile-first dark theme → **web-responsive light theme** matching Trade Republic's web app; replaced chart on home with the square heatmap and built the full detail page (recommendations, metrics, etc.)
 
-## Architecture
-- React 18 + react-router-dom v6 + TailwindCSS 3, no backend logic.
-- Backend `server.py` is a no-op FastAPI stub only so supervisor's `backend` program doesn't error.
-- All data lives in **`/app/frontend/src/data/mockData.js`** — single source of truth, swap-out point for a future real API.
-- Custom **squarified treemap** (`/app/frontend/src/lib/squarify.js`) sizes cells by `marketCapWeight` inside each sector row.
-- Color scale (`/app/frontend/src/lib/format.js`) interpolates between neutral graphite and vivid mint / vivid red based on % change.
+## Tech
+- React 18 + react-router-dom v6 + TailwindCSS 3
+- No backend; `/app/backend/server.py` is a stub so supervisor doesn't error
+- Data lives entirely in `/app/frontend/src/data/mockData.js` (single swap-out point)
+- Custom squarified treemap (`/app/frontend/src/lib/squarify.js`)
+- Deterministic per-ticker synthetic details (`getStockDetail`) for metrics / dividends / analysts / events / related
+
+## Design system (v2 — light theme)
+- Background: `#FFFFFF`
+- Text: black primary, `#6E6E73` secondary
+- Accent (positive / CTA): mint `#00D084`, deep mint `#00A468`
+- Red (negative): `#E23A3A`
+- Cards: 16px radius, 1px hairline borders (`rgba(0,0,0,0.08)`), pale grey `#F5F5F7` surface
+- Type: `-apple-system` SF stack, tabular numerics on prices
 
 ## Pages
-- `/` — Heatmap (primary). Sticky top bar with history icon, period dropdown (1J/1S/1M/YTD/1A), index dropdown (BRVM Composite / 30 / Principal), refresh. Below: 7 sector rows (Télécoms → Transport) each containing a squarified treemap of tappable cells.
-- `/stock/:ticker` — Detail: name, big FCFA price, abs+% change, SVG line chart (green if up, red if down), period selector, key-stats card (Capitalisation, Secteur, Ouverture, Volume, Plus haut, Plus bas), Acheter/Vendre CTA, star toggle. Bottom tab bar is hidden here for a focused view.
-- `/watchlist` — Empty state ("Aucune valeur ajoutée") + mint CTA.
-- `/portfolio` — Mock holdings (SNTS, SGBC, PALC) with total value, running P/L, per-row navigation to detail.
-- `/settings` — Felix badge + Notifications / Devise / Langue / À propos rows.
+- `/` **Home** — TopNav with search + Portefeuille/Liste/Réglages nav; big *Marchés* headline; period + index dropdowns; **squarified heatmap** (nested treemap on desktop, stacked sector rows on mobile); right sidebar *Investissements* (5 holdings), *Indice BRVM Composite* card; *Découvrir → Plus fortes variations du jour* + *Explorer par secteur* below.
+- `/stock/:ticker` **Detail** — ticker logo, name, big FCFA price, ▲/▼ change, period pills (1J→5A), SVG chart with last-price pill, then sections **Métriques** (dual-metric grid with ranged bars), **Dividendes** (bar list), **Recommandations des analystes** (target price + Acheter/Conserver/Vendre stacked bar), **Événements à venir** (3 cards), **Valeurs à découvrir** (related cards, padded from wider universe when sector is small), **À propos**. Right sidebar: Acheter/Vendre tabs, amount input → *Vérifier l'ordre* (enables when amount > 0), **Position** card, savings-plan CTA.
+- `/watchlist` — Empty state with mint CTA.
+- `/portfolio` — Total value, chart, 5 holdings, sidebar *Répartition*.
+- `/settings` — Felix badge + Notifications / Devise / Langue / À propos.
 
 ## Personas
-- Retail investor in Côte d'Ivoire / UEMOA region who wants a quick "market at a glance" on their phone.
-- Designer / prospective buyer evaluating the fintech UI direction.
+- Retail investor in Côte d'Ivoire / UEMOA region who wants a market-at-a-glance view of the BRVM on web + mobile.
+- Product / investor evaluating the fintech UX direction.
 
 ## Implemented (2026-01-19)
-- Heatmap with 26 real BRVM tickers across 7 sectors, weighted market caps, plausible mock % changes spanning +5.24% to −4.20% for visual variety.
-- Squarified treemap layout (mobile-first, scrollable).
-- Trade Republic aesthetic: pure black, mint green, red, flat, hairline dividers, rounded 16px cards, tabular numerics, SF-style system stack.
-- Bottom tab bar with lucide line icons, active mint tint + subtle scale-pop animation, hidden on stock detail.
-- All dropdowns, refresh spin, star toggle wired up (stubbed as per brief).
-- Stock detail deterministic SVG line chart from ticker+changePct seed.
-- French copy throughout, FCFA formatting with thin spaces.
-
-## Verified
-- Testing agent iteration 1: **37/37 frontend checks passed (100%)**. No blocking issues.
-- ESLint: clean.
-- Visual QA via screenshots: mobile 430×900 for Heatmap, Stock detail, Watchlist, Portfolio, Settings.
+- Full v2 refactor — light theme, TopNav, responsive grid.
+- Real BRVM tickers (26) across 7 sectors, plausible mock daily moves.
+- Nested squarified treemap on desktop (`aspect ≈ 0.94` chosen empirically for this weight distribution); stacked sector rows on mobile (`<640px`).
+- Rich stock detail with recommendations, metrics with range bars, dividends, upcoming events, related stocks, buy/sell + position sidebar.
+- Deterministic per-ticker synthetic details so revisiting the same stock always shows consistent numbers.
+- ESLint clean; testing agent iteration 2 = 100% pass.
 
 ## Backlog
-### P1 (small polish)
-- Guard `totalCost === 0` in Portfolio total% computation (defensive, not currently triggered).
-- Silence React Router v6 future-flag warnings by adding `future={{ v7_startTransition:true, v7_relativeSplatPath:true }}` to `BrowserRouter`.
+### P1
+- Wire the TopNav search to actually filter tickers by name/ticker (currently a stub).
+- Slugify sector test IDs (avoid spaces/accents).
 
-### P2 (feature ideas)
-- Wire the period dropdown to a tiny mock time-series generator so the treemap actually re-computes when 1J/1S/1M is chosen.
-- Search overlay (magnifier icon in top bar) that filters cells by ticker/name.
-- Toggle sector view ↔ flat "top movers" list.
-- Real data adapter (single `fetchStocks()` in mockData.js is the swap point).
+### P2
+- Wire period/index dropdowns to time-shift the heatmap % values (mock timeseries).
+- Add a "Top gainers / Top losers" toggle above the movers strip.
+- Add a real logo palette per ticker (currently uses ticker abbrev in a circle).
 
 ### P3
-- Localisation toggle (French ↔ English).
-- Progressive Web App manifest + icon for install-to-home.
+- FR ↔ EN toggle.
+- PWA + install-to-home.
 
 ## Next tasks
-- Ship as-is for user review.
-- Await feedback on visual density (e.g., if user prefers the heatmap to fit one screen vs scroll) before iterating on layout parameters.
+- Ship for user review; iterate on data density, related-list breadth, or sector-tile behavior once feedback comes in.
