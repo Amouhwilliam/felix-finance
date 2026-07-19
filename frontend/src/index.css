@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  background: #000000;
+}
+
+body {
+  margin: 0;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Segoe UI Variable', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  font-feature-settings: 'ss01', 'cv11', 'tnum';
+}
+
+/* Selection */
+::selection {
+  background: rgba(0, 208, 132, 0.35);
+  color: #ffffff;
+}
+
+/* Scrollbar (kept subtle) */
+::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Tap highlight off for a native feel */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Numeric weight for prices */
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Divider line */
+.hairline {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Soft grain overlay for a hint of depth (very subtle, still flat) */
+.grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.35;
+  z-index: 1;
+}
+
+/* Reveal animation for staggered entries */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.reveal { animation: fade-up 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Tab active pulse */
+@keyframes tab-pop {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.tab-pop { animation: tab-pop 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
