@@ -3,14 +3,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        mint: '#00D084',
-        'mint-dim': '#00A468',
-        loss: '#FF4D4D',
-        'loss-dim': '#B03434',
+        // Light theme — Trade Republic web app.
         ink: '#000000',
-        surface: '#0A0A0A',
-        divider: 'rgba(255,255,255,0.08)',
-        muted: '#8E8E93',
+        canvas: '#FFFFFF',
+        surface: '#F5F5F7',
+        'surface-2': '#EFEFF3',
+        muted: '#6E6E73',
+        'muted-2': '#A1A1A6',
+        hairline: 'rgba(0,0,0,0.08)',
+        mint: '#00D084',
+        'mint-deep': '#00A468',
+        loss: '#E23A3A',
+        'loss-deep': '#B12525',
       },
       fontFamily: {
         sans: [
@@ -25,6 +29,9 @@ module.exports = {
       },
       borderRadius: {
         card: '16px',
+      },
+      maxWidth: {
+        shell: '1440px',
       },
     },
   },

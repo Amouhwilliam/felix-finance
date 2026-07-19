@@ -1,16 +1,22 @@
-import React, { useLayoutEffect, useRef, useState, useMemo } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { groupBySector } from '../data/mockData';
 import { squarify } from '../lib/squarify';
-import { pctToColor, formatPct } from '../lib/format';
+import { pctToColor, pctTextColor, formatPct } from '../lib/format';
 
-// Vertical stack of sector rows. Each row height is proportional to sector weight.
-// Inside each row, a squarified treemap of stocks. Mobile-first and scrollable.
+// Responsive squarified heatmap.
+// - Desktop (>= 640px): true nested squarified treemap — sectors are a top-level
+//   squarify, then each sector rectangle contains a nested squarify of stocks.
+//   Matches the reference S&P heatmap look.
+// - Mobile (< 640px): falls back to a vertical stack of sector rows so cells
+//   remain tappable and legible.
 
-const SECTOR_HEADER_H = 24; // px, sector label bar
-const MIN_ROW_H = 130; // ensures small sectors remain tappable and grid-like on mobile
+const SECTOR_HEADER_H = 24;
+const CELL_GAP = 2;
+const MOBILE_BREAK = 640;
+const MOBILE_MIN_ROW_H = 128;
 
-export default function Treemap() {
+export default function Treemap({ aspect = 1.05, minHeight = 460, maxHeight = 1100 }) {
   const containerRef = useRef(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const navigate = useNavigate();
@@ -21,58 +27,97 @@ export default function Treemap() {
     const el = containerRef.current;
     const ro = new ResizeObserver((entries) => {
       const cr = entries[0].contentRect;
-      setSize({ w: cr.width, h: cr.height });
+      const w = cr.width;
+      let h;
+      if (w < MOBILE_BREAK) {
+        // Stack sectors as rows. Total height depends on weight distribution.
+        const totalW = groups.reduce((s, g) => s + g.totalWeight, 0);
+        const idealH = Math.max(minHeight, Math.min(maxHeight, w * 2.4));
+        h = groups
+          .map((g) => Math.max(MOBILE_MIN_ROW_H, (g.totalWeight / totalW) * idealH))
+          .reduce((s, x) => s + x, 0);
+      } else {
+        // Near-square (~0.94) → best pack for BRVM weight distribution.
+        const dynamicAspect = w < 900 ? 1.05 : 0.94;
+        h = Math.max(minHeight, Math.min(maxHeight, Math.round(w * dynamicAspect)));
+      }
+      setSize({ w, h });
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [aspect, minHeight, maxHeight, groups]);
 
-  // Compute per-sector row heights based on total weight, but respecting min row height.
-  const rows = useMemo(() => {
-    if (size.w === 0) return [];
+  const isMobile = size.w > 0 && size.w < MOBILE_BREAK;
+
+  // Desktop layout: nested squarified treemap.
+  const desktopSectors = useMemo(() => {
+    if (isMobile || size.w === 0) return [];
+    const items = groups.map((g) => ({ ...g, value: g.totalWeight }));
+    const laid = squarify(items, { x: 0, y: 0, w: size.w, h: size.h });
+    return laid.map((sec) => {
+      const bodyRect = {
+        x: sec.rect.x + CELL_GAP,
+        y: sec.rect.y + SECTOR_HEADER_H,
+        w: Math.max(0, sec.rect.w - CELL_GAP * 2),
+        h: Math.max(0, sec.rect.h - SECTOR_HEADER_H - CELL_GAP),
+      };
+      const cellItems = sec.stocks.map((s) => ({ ...s, value: s.marketCapWeight }));
+      return { ...sec, cells: squarify(cellItems, bodyRect) };
+    });
+  }, [groups, size, isMobile]);
+
+  // Mobile layout: stacked sector rows.
+  const mobileRows = useMemo(() => {
+    if (!isMobile) return [];
     const totalW = groups.reduce((s, g) => s + g.totalWeight, 0);
-    // Aim for a nicely dense treemap. On mobile we want scroll; on desktop we cap.
-    const idealH = Math.max(size.w * 2.3, 900);
-    // Distribute proportionally with a floor of MIN_ROW_H per sector.
-    let heights = groups.map((g) => Math.max((g.totalWeight / totalW) * idealH, MIN_ROW_H));
+    const idealH = Math.max(minHeight, Math.min(maxHeight, size.w * 2.4));
+    const heights = groups.map((g) => Math.max(MOBILE_MIN_ROW_H, (g.totalWeight / totalW) * idealH));
+    let y = 0;
     return groups.map((g, i) => {
       const rowH = heights[i];
-      const bodyH = rowH - SECTOR_HEADER_H;
-      const items = g.stocks.map((s) => ({ ...s, value: s.marketCapWeight }));
-      const laid = squarify(items, { x: 0, y: 0, w: size.w, h: bodyH });
-      return { sector: g.sector, height: rowH, cells: laid };
+      const rect = { x: 0, y, w: size.w, h: rowH };
+      const bodyRect = {
+        x: CELL_GAP,
+        y: y + SECTOR_HEADER_H,
+        w: Math.max(0, size.w - CELL_GAP * 2),
+        h: Math.max(0, rowH - SECTOR_HEADER_H - CELL_GAP),
+      };
+      const cellItems = g.stocks.map((s) => ({ ...s, value: s.marketCapWeight }));
+      const cells = squarify(cellItems, bodyRect);
+      y += rowH;
+      return { sector: g.sector, rect, cells };
     });
-  }, [groups, size]);
+  }, [groups, isMobile, size, minHeight, maxHeight]);
+
+  const sectorsToRender = isMobile ? mobileRows : desktopSectors;
 
   return (
-    <div ref={containerRef} className="w-full" data-testid="heatmap-container">
-      {rows.map((row, i) => (
-        <div
-          key={row.sector}
-          className="relative w-full"
-          style={{ height: row.height }}
-          data-testid={`sector-row-${row.sector}`}
-        >
-          {/* Sector header bar */}
+    <div
+      ref={containerRef}
+      className="relative w-full rounded-card overflow-hidden border hairline bg-black"
+      style={{ height: size.h || minHeight }}
+      data-testid="heatmap-container"
+    >
+      {sectorsToRender.map((sec) => (
+        <React.Fragment key={sec.sector}>
           <div
-            className="absolute left-0 right-0 top-0 flex items-center px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/90"
-            style={{ height: SECTOR_HEADER_H, background: 'rgba(255,255,255,0.04)' }}
+            className="absolute pointer-events-none"
+            style={{ left: sec.rect.x, top: sec.rect.y, width: sec.rect.w, height: sec.rect.h, background: '#0A0A0A' }}
+          />
+          <div
+            className="absolute flex items-center px-3 text-white text-[11px] font-semibold uppercase tracking-[0.14em]"
+            style={{ left: sec.rect.x, top: sec.rect.y, width: sec.rect.w, height: SECTOR_HEADER_H, background: '#111' }}
+            data-testid={`sector-header-${sec.sector}`}
           >
-            <span>{row.sector}</span>
+            <span className="truncate">{sec.sector}</span>
             <span className="ml-2 text-white/40 font-normal normal-case tracking-normal text-[10px]">
-              {row.cells.length} valeurs
+              {sec.cells.length}
             </span>
           </div>
-          {/* Cells */}
-          <div
-            className="absolute left-0 right-0"
-            style={{ top: SECTOR_HEADER_H, bottom: 0 }}
-          >
-            {row.cells.map((c) => (
-              <Cell key={c.ticker} cell={c} onTap={() => navigate(`/stock/${c.ticker}`)} />
-            ))}
-          </div>
-        </div>
+          {sec.cells.map((c) => (
+            <Cell key={c.ticker} cell={c} onTap={() => navigate(`/stock/${c.ticker}`)} />
+          ))}
+        </React.Fragment>
       ))}
     </div>
   );
@@ -81,38 +126,34 @@ export default function Treemap() {
 function Cell({ cell, onTap }) {
   const { rect, ticker, changePct } = cell;
   const bg = pctToColor(changePct);
-  // Font sizes scale with the smaller cell dimension
-  const area = rect.w * rect.h;
-  const tickerSize = Math.max(9, Math.min(28, Math.sqrt(area) / 6));
-  const pctSize = Math.max(8, tickerSize * 0.55);
-  const showPct = rect.h > 34 && rect.w > 40;
-  const stacked = rect.h > 46;
+  const color = pctTextColor(changePct);
+  const tickerSize = Math.max(0, Math.min(28, rect.h * 0.44, rect.w / 4.5));
+  const pctSize = Math.max(0, tickerSize * 0.52);
+  const showTicker = tickerSize >= 9 && rect.w > 24 && rect.h > 14;
+  const showPct = tickerSize >= 12 && rect.h > 34 && rect.w > 44;
+  const stacked = rect.h > 48;
 
   return (
     <button
       onClick={onTap}
       data-testid={`heatmap-cell-${ticker}`}
-      className="absolute overflow-hidden text-white active:opacity-80 transition-[opacity] duration-150"
+      title={`${ticker} · ${formatPct(changePct)}`}
+      className="absolute overflow-hidden hover:z-10 hover:ring-2 hover:ring-black/30 transition-[transform,box-shadow] duration-150 focus:outline-none"
       style={{
-        left: rect.x,
-        top: rect.y,
-        width: rect.w,
-        height: rect.h,
+        left: rect.x + CELL_GAP / 2,
+        top: rect.y + CELL_GAP / 2,
+        width: Math.max(0, rect.w - CELL_GAP),
+        height: Math.max(0, rect.h - CELL_GAP),
         background: bg,
-        // 1px black gap between cells
-        boxShadow: 'inset 0 0 0 1px #000',
+        color,
       }}
     >
-      <div
-        className="w-full h-full flex flex-col items-center justify-center px-1 num"
-        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
-      >
-        <span
-          className="font-semibold leading-none"
-          style={{ fontSize: tickerSize }}
-        >
-          {ticker}
-        </span>
+      <div className="w-full h-full flex flex-col items-center justify-center px-1 num select-none">
+        {showTicker && (
+          <span className="font-semibold leading-none" style={{ fontSize: tickerSize }}>
+            {ticker}
+          </span>
+        )}
         {showPct && (
           <span
             className={`leading-none ${stacked ? 'mt-1' : 'mt-0.5'} opacity-95`}
