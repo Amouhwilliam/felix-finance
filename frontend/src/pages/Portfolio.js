@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { computeHoldingRows } from '../data/mockData';
 import { formatFcfa, formatPct } from '../lib/format';
 import PriceChart from '../components/PriceChart';
+import Logo from '../components/Logo';
 
 export default function Portfolio() {
   const rows = computeHoldingRows();
@@ -35,9 +36,7 @@ export default function Portfolio() {
                   className="flex items-center gap-4 px-2 -mx-2 py-4 hover:bg-surface transition-colors rounded-lg"
                   data-testid={`holding-${r.ticker}`}
                 >
-                  <div className="w-11 h-11 rounded-full bg-surface flex items-center justify-center text-[12px] font-bold shrink-0">
-                    {r.ticker.slice(0, 4)}
-                  </div>
+                  <Logo ticker={r.ticker} size={44} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[15px] font-semibold truncate">{r.name}</div>
                     <div className="text-[12px] text-muted num">{`${r.shares} × ${formatFcfa(r.price)}`}</div>

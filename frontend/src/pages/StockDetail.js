@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Star, MoreHorizontal, ChevronRight, ChevronLeft, TrendingUp } from 'lucide-react';
 import PriceChart from '../components/PriceChart';
+import Logo from '../components/Logo';
 import { getStockDetail, relatedStocks } from '../data/mockData';
 import { formatFcfa, formatPct, formatCompactFcfa } from '../lib/format';
 
@@ -46,7 +47,7 @@ export default function StockDetail() {
         {/* Header row */}
         <div className="flex items-start justify-between gap-6">
           <div>
-            <TickerLogo ticker={stock.ticker} />
+            <Logo ticker={stock.ticker} size={56} />
             <h1 className="mt-4 text-[36px] font-bold tracking-tight leading-tight">
               {stock.name}
             </h1>
@@ -188,14 +189,14 @@ export default function StockDetail() {
                 className="rounded-card border hairline p-4 hover:bg-surface transition-colors flex flex-col justify-between min-h-[170px]"
                 data-testid={`related-${r.ticker}`}
               >
-                <TickerLogo ticker={r.ticker} small />
+                <Logo ticker={r.ticker} size={36} />
                 <div>
                   <div className="text-[14px] font-semibold leading-snug">{r.name}</div>
                   <div className={`mt-1 text-[13px] font-semibold num ${r.changePct >= 0 ? 'text-mint-deep' : 'text-loss'}`}>
                     {r.changePct >= 0 ? '▲' : '▼'} {formatPct(r.changePct, { withSign: false })}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    <TagPill>{r.sector}</TagPill>
+                    <TagPill>{r.subIndustry}</TagPill>
                     <TagPill>UEMOA</TagPill>
                   </div>
                 </div>
@@ -330,15 +331,6 @@ export default function StockDetail() {
           </div>
         </div>
       </aside>
-    </div>
-  );
-}
-
-function TickerLogo({ ticker, small }) {
-  const size = small ? 'w-10 h-10 text-[12px]' : 'w-14 h-14 text-[15px]';
-  return (
-    <div className={`rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.10)] flex items-center justify-center font-bold ${size}`}>
-      {ticker.slice(0, 4)}
     </div>
   );
 }
