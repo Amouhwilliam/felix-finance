@@ -1,7 +1,14 @@
 import React from 'react';
-import { Bell, DollarSign, Globe, Info, ChevronRight } from 'lucide-react';
+import { Bell, DollarSign, Globe, Info, ChevronRight, type LucideIcon } from 'lucide-react';
 
-const rows = [
+interface SettingsRow {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  testId: string;
+}
+
+const rows: SettingsRow[] = [
   { icon: Bell, label: 'Notifications', value: 'Activées', testId: 'row-notifications' },
   { icon: DollarSign, label: 'Devise', value: 'FCFA (XOF)', testId: 'row-currency' },
   { icon: Globe, label: 'Langue', value: 'Français', testId: 'row-language' },
@@ -29,7 +36,10 @@ export default function Settings() {
           <ul className="divide-y hairline border-y hairline">
             {rows.map(({ icon: Icon, label, value, testId }) => (
               <li key={label}>
-                <button className="w-full flex items-center justify-between py-4 text-left hover:bg-surface transition-colors px-2 -mx-2 rounded-lg" data-testid={testId}>
+                <button
+                  className="w-full flex items-center justify-between py-4 text-left hover:bg-surface transition-colors px-2 -mx-2 rounded-lg"
+                  data-testid={testId}
+                >
                   <div className="flex items-center gap-4">
                     <Icon size={18} className="text-muted" strokeWidth={1.7} />
                     <span className="text-[15px]">{label}</span>

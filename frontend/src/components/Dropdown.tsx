@@ -1,12 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
-export default function Dropdown({ label, options, value, onChange, align = 'center', testId }) {
+interface DropdownOption {
+  value: string;
+  label: string;
+}
+
+interface DropdownProps {
+  label?: string;
+  options: DropdownOption[];
+  value: string;
+  onChange?: (value: string) => void;
+  align?: 'left' | 'right' | 'center';
+  testId?: string;
+}
+
+export default function Dropdown({ label, options, value, onChange, align = 'center', testId }: DropdownProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);

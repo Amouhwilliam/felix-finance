@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { logoUrl } from '../data/mockData';
 
-// Renders the real company logo with a graceful fallback to a monogram badge
-// (used when the logo image fails to load).
+interface LogoProps {
+  ticker: string;
+  size?: number | string;
+  rounded?: string;
+  className?: string;
+}
 
-export default function Logo({ ticker, size = 40, rounded = 'rounded-full', className = '' }) {
+export default function Logo({ ticker, size = 40, rounded = 'rounded-full', className = '' }: LogoProps) {
   const [broken, setBroken] = useState(false);
   const px = typeof size === 'number' ? `${size}px` : size;
 
