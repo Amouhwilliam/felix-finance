@@ -22,7 +22,7 @@ TICKERS = list(TICKER_SUFFIX.keys())
 
 
 def main():
-    scraper = SikafinanceScraper(request_delay=2.0)
+    scraper = SikafinanceScraper(request_delay=1.0)
     total = 0
     failed = []
 

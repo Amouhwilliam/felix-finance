@@ -48,6 +48,19 @@ export interface MarketStats {
   computed_at: string;
 }
 
+export interface AIInsightDTO {
+  ticker: string;
+  exchange_code: string;
+  sentiment: 'bullish' | 'neutral' | 'bearish';
+  insight_text: string;
+  buy_pct: number;
+  hold_pct: number;
+  sell_pct: number;
+  provider: string | null;
+  generated_at: string;
+  valid_until: string;
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
@@ -78,4 +91,8 @@ export const api = {
   /** Aggregate market statistics */
   marketStats: (exchange: Exchange = "BRVM") =>
     get<MarketStats>(`/v1/${exchange}/market-stats`),
+
+  /** AI-generated weekly insight for a stock */
+  aiInsight: (exchange: Exchange = "BRVM", ticker: string) =>
+    get<AIInsightDTO>(`/v1/${exchange}/stocks/${ticker}/ai-insight`),
 };

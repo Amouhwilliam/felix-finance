@@ -26,7 +26,17 @@ services:
       SYNC_DATABASE_URL: postgresql+psycopg2://felix:felix@db:5432/felix
       SCRAPE_ENABLED: "true"
       SCRAPE_INTERVAL_MINUTES: "3"
-      CORS_ORIGINS: '["http://localhost", "http://localhost:80"]'
+      CORS_ORIGINS: '["http://localhost", "http://localhost:80", "http://localhost:3000"]'
+      LOG_LEVEL: "DEBUG"   # DEBUG shows per-ticker data; INFO shows summaries only
+      # AI Insights
+      AI_ENABLED: "true"
+      AI_PROVIDER: "bedrock"
+      AWS_REGION: "us-east-1"
+      BEDROCK_MODEL_ID: "deepseek.v3.2"
+      # AWS credentials are injected via the volume mount below (local dev)
+      # On EC2 use an IAM role instead — remove the volume mount.
+    volumes:
+      - ~/.aws:/root/.aws:ro   # mount local AWS credentials read-only
     ports:
       - "8000:8000"
     healthcheck:

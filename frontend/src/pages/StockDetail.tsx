@@ -1,15 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Star, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Star, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
 import PriceChart, { getXLabels } from '../components/PriceChart';
-import type { ChartPeriod } from '../components/PriceChart';
+import type { ChartPeriod, ChartDataPoint } from '../components/PriceChart';
 import Logo from '../components/Logo';
 import { getStockDetail, relatedStocks } from '../data/mockData';
 import { api } from '../services/api';
-import { formatFcfa, formatPct, formatCompactFcfa } from '../lib/format';
+import { formatFcfa, formatPct } from '../lib/format';
+import type { AIInsightDTO } from '../services/api';
 import type { Stock, Dividend, CalendarEvent } from '../types';
 
 const PERIODS: ChartPeriod[] = ['1J', '1S', '1M', '6M', '1A', '5A'];
+
+// Map frontend period labels to API range params
+const PERIOD_TO_API_RANGE: Record<ChartPeriod, string | null> = {
+  '1J': null,   // uses intraday endpoint
+  '1S': '1W',
+  '1M': '1M',
+  '6M': '6M',
+  '1A': '1Y',
+  '5A': '5Y',
+};
+
+function fmtIntradayLabel(ts: string): string {
+  return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtHistoryLabel(trade_date: string, period: ChartPeriod): string {
+  const d = new Date(trade_date);
+  if (period === '5A' || period === '1A') {
+    return d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+  }
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
 
 export default function StockDetail() {
   const { ticker } = useParams<{ ticker: string }>();
@@ -24,6 +47,12 @@ export default function StockDetail() {
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveChangePct, setLiveChangePct] = useState<number | null>(null);
 
+  // Real chart data — undefined = not yet fetched (use mock), [] = fetched but empty
+  const [chartData, setChartData] = useState<ChartDataPoint[] | undefined>(undefined);
+
+  // AI insight — null = loading, undefined = not available
+  const [aiInsight, setAiInsight] = useState<AIInsightDTO | null | undefined>(null);
+
   useEffect(() => {
     if (!ticker) return;
     api.quote('BRVM', ticker)
@@ -32,7 +61,41 @@ export default function StockDetail() {
         setLiveChangePct(q.change_pct);
       })
       .catch(() => {/* keep mock */});
+
+    api.aiInsight('BRVM', ticker)
+      .then((insight) => setAiInsight(insight))
+      .catch(() => setAiInsight(undefined)); // 404 = no insight yet
   }, [ticker]);
+
+  // Fetch chart data whenever ticker or period changes
+  useEffect(() => {
+    if (!ticker) return;
+    setChartData(undefined); // reset while loading
+
+    const apiRange = PERIOD_TO_API_RANGE[period];
+    if (apiRange === null) {
+      // Intraday (1J)
+      api.intraday('BRVM', ticker)
+        .then((pts) => {
+          if (pts.length > 1) {
+            setChartData(pts.map(p => ({ label: fmtIntradayLabel(p.ts), value: p.price })));
+          } else {
+            setChartData(undefined); // fall back to mock
+          }
+        })
+        .catch(() => setChartData(undefined));
+    } else {
+      api.history('BRVM', ticker, apiRange)
+        .then((pts) => {
+          if (pts.length > 1) {
+            setChartData(pts.map(p => ({ label: fmtHistoryLabel(p.trade_date, period), value: p.close })));
+          } else {
+            setChartData(undefined); // fall back to mock
+          }
+        })
+        .catch(() => setChartData(undefined));
+    }
+  }, [ticker, period]);
 
   // Merge live data on top of mock
   const stock = mockStock
@@ -129,6 +192,7 @@ export default function StockDetail() {
             changePct={stock.changePct}
             lastPrice={stock.price}
             period={period}
+            data={chartData}
             width={760}
             height={300}
           />
@@ -143,42 +207,6 @@ export default function StockDetail() {
           ))}
         </div>
 
-        {/* ── METRICS ── */}
-        <section className="mt-14" data-testid="section-metrics">
-          <h2 className="text-[20px] font-bold tracking-tight mb-6">Métriques</h2>
-
-          {/* Range rows */}
-          <div className="space-y-5 mb-8">
-            <MetricRangeRow
-              label="Séance"
-              left={stock.dayLow}
-              right={stock.dayHigh}
-              current={stock.price}
-              rightLabel="Cap. boursière"
-              rightValue={formatCompactFcfa(stock.mktCapBn * 1e9)}
-            />
-            <MetricRangeRow
-              label="52 semaines"
-              left={stock.yearLow}
-              right={stock.yearHigh}
-              current={stock.price}
-              rightLabel="PER"
-              rightValue={stock.peRatio}
-            />
-          </div>
-
-          {/* Grid metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-5 gap-x-4 pt-5 border-t border-black/[0.07]">
-            <MetricCell label="Ouverture" value={formatFcfa(stock.open)} />
-            <MetricCell label="Clôture" value={formatFcfa(stock.close)} />
-            <MetricCell label="Bêta 52S" value={stock.beta52w} />
-            <MetricCell label="" value="" />
-            <MetricCell label="Achat" value={formatFcfa(stock.bid)} />
-            <MetricCell label="Vente" value={formatFcfa(stock.ask)} />
-            <MetricCell label="" value="" />
-            <MetricCell label="Rendement" value={`${stock.divYield} %`} />
-          </div>
-        </section>
 
         {/* ── DIVIDENDS ── */}
         <section className="mt-14" data-testid="section-dividends">
@@ -196,6 +224,11 @@ export default function StockDetail() {
             ))}
           </ul>
         </section>
+
+        {/* ── AI INSIGHTS ── */}
+        {aiInsight && (
+          <AIInsightSection insight={aiInsight} />
+        )}
 
         {/* ── ANALYSTS ── */}
         <section className="mt-14" data-testid="section-analysts">
@@ -296,7 +329,7 @@ export default function StockDetail() {
             </button>
           </div>
 
-          {/* Quick facts */}
+          {/* Quick facts — hidden for now
           <div className="rounded-[16px] border border-black/[0.08] p-5" data-testid="quick-facts">
             <h3 className="text-[11px] font-semibold text-[#6B6B6B] uppercase tracking-widest mb-4">
               En bref
@@ -309,60 +342,13 @@ export default function StockDetail() {
               <FactRow label="Devise" value="FCFA (XOF)" />
             </dl>
           </div>
+          */}
         </div>
       </aside>
     </div>
   );
 }
 
-function MetricCell({ label, value }: { label: string; value: string }) {
-  if (!label) return <div />;
-  return (
-    <div>
-      <div className="text-[12px] text-[#6B6B6B]">{label}</div>
-      <div className="mt-1 text-[15px] font-bold num">{value}</div>
-    </div>
-  );
-}
-
-function MetricRangeRow({
-  label,
-  left,
-  right,
-  current,
-  rightLabel,
-  rightValue,
-}: {
-  label: string;
-  left: number;
-  right: number;
-  current: number;
-  rightLabel: string;
-  rightValue: string;
-}) {
-  const pos = Math.max(0, Math.min(1, (current - left) / (right - left || 1)));
-  return (
-    <div className="grid grid-cols-2 gap-8 items-center">
-      <div>
-        <div className="text-[12px] text-[#6B6B6B] mb-2">{label}</div>
-        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-          <span className="num font-semibold text-[13px]">{left.toLocaleString('fr-FR')}</span>
-          <div className="relative h-[6px] rounded-full bg-[#E5E5EA]">
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-[#00D084]"
-              style={{ width: `${pos * 100}%` }}
-            />
-          </div>
-          <span className="num font-semibold text-[13px]">{right.toLocaleString('fr-FR')}</span>
-        </div>
-      </div>
-      <div>
-        <div className="text-[12px] text-[#6B6B6B] mb-1.5">{rightLabel}</div>
-        <div className="text-[15px] font-bold num">{rightValue}</div>
-      </div>
-    </div>
-  );
-}
 
 function FactRow({ label, value }: { label: string; value: string }) {
   return (
@@ -396,6 +382,62 @@ function EventCard({ event }: { event: CalendarEvent }) {
       <div className="mt-2.5 text-[13.5px] font-semibold">{event.title}</div>
       <p className="mt-1.5 text-[12.5px] text-[#6B6B6B] leading-snug">{event.desc}</p>
     </div>
+  );
+}
+
+const SENTIMENT_CONFIG = {
+  bullish: { label: 'Haussier', color: 'text-[#00A468]', bg: 'bg-[#F0FBF6]', dot: '#00D084' },
+  neutral: { label: 'Neutre',   color: 'text-[#6B6B6B]', bg: 'bg-[#F5F5F7]', dot: '#A1A1A6' },
+  bearish: { label: 'Baissier', color: 'text-[#E23A3A]', bg: 'bg-[#FFF3F3]', dot: '#E23A3A' },
+};
+
+function AIInsightSection({ insight }: { insight: AIInsightDTO }) {
+  const cfg = SENTIMENT_CONFIG[insight.sentiment] ?? SENTIMENT_CONFIG.neutral;
+  const generated = new Date(insight.generated_at).toLocaleDateString('fr-FR', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  return (
+    <section className="mt-14" data-testid="section-ai-insight">
+      <div className="flex items-center gap-2 mb-5">
+        <Sparkles size={18} strokeWidth={1.8} className="text-[#6B6B6B]" />
+        <h2 className="text-[20px] font-bold tracking-tight">Analyse IA</h2>
+        <span className={`ml-1 px-2.5 py-0.5 rounded-full text-[12px] font-semibold ${cfg.bg} ${cfg.color}`}>
+          {cfg.label}
+        </span>
+      </div>
+
+      <p className="text-[14px] text-[#0A0A0A]/85 leading-relaxed max-w-2xl">
+        {insight.insight_text}
+      </p>
+
+      {/* Buy / Hold / Sell bar */}
+      <div className="mt-5">
+        <div className="flex h-[8px] rounded-full overflow-hidden">
+          <div style={{ width: `${insight.buy_pct}%` }} className="bg-[#00D084]" />
+          <div style={{ width: `${insight.hold_pct}%` }} className="bg-[#D1D1D6]" />
+          <div style={{ width: `${insight.sell_pct}%` }} className="bg-[#E23A3A]" />
+        </div>
+        <div className="mt-3 grid grid-cols-3">
+          <div>
+            <div className="text-[13px] font-semibold text-[#00A468]">Acheter</div>
+            <div className="text-[18px] font-bold num">{insight.buy_pct} %</div>
+          </div>
+          <div>
+            <div className="text-[13px] font-semibold text-[#6B6B6B]">Conserver</div>
+            <div className="text-[18px] font-bold num">{insight.hold_pct} %</div>
+          </div>
+          <div>
+            <div className="text-[13px] font-semibold text-[#E23A3A]">Vendre</div>
+            <div className="text-[18px] font-bold num">{insight.sell_pct} %</div>
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-4 text-[11.5px] text-[#A1A1A6] leading-relaxed max-w-lg">
+        Suggéré par IA ({insight.provider ?? 'modèle IA'}) basé sur les données de marché et l&apos;opinion publique — mis à jour le {generated}. Pas un conseil financier.
+      </p>
+    </section>
   );
 }
 

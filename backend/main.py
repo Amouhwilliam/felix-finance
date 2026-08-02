@@ -10,23 +10,25 @@ Endpoints:
   GET /health                                 — health check
 """
 import logging
+import time as _time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone, date
 
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 
 from config import settings
 from database import engine, get_db, Base
-from models import Quote, IntradaySnapshot, PriceHistory, Stock
-from schemas import QuoteOut, HistoryPointOut, IntradayPointOut, MarketStatsOut
+from models import Quote, IntradaySnapshot, PriceHistory, Stock, AIInsight
+from schemas import QuoteOut, HistoryPointOut, IntradayPointOut, MarketStatsOut, AIInsightOut
 from scraper import start_scheduler
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)-8s %(name)-30s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
@@ -158,6 +160,19 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    t0 = _time.perf_counter()
+    response = await call_next(request)
+    ms = ((_time.perf_counter() - t0) * 1000)
+    # Skip healthcheck spam at INFO — log it only at DEBUG
+    if request.url.path == "/health":
+        logger.debug("API  %-6s %-50s → %d  (%.0fms)", request.method, request.url.path, response.status_code, ms)
+    else:
+        logger.info("API  %-6s %-50s → %d  (%.0fms)", request.method, request.url.path, response.status_code, ms)
+    return response
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
@@ -195,7 +210,8 @@ async def get_intraday(
     db: AsyncSession = Depends(get_db),
 ):
     target = datetime.strptime(date, "%Y-%m-%d").date() if date else datetime.now(timezone.utc).date()
-    day_start = datetime(target.year, target.month, target.day, 0, 0, 0, tzinfo=timezone.utc)
+    # Use naive datetimes — column is TIMESTAMP WITHOUT TIME ZONE
+    day_start = datetime(target.year, target.month, target.day, 0, 0, 0)
     day_end = day_start + timedelta(days=1)
 
     result = await db.execute(
@@ -261,6 +277,20 @@ async def get_market_stats(exchange: str, db: AsyncSession = Depends(get_db)):
         total_volume_xof=total_vol or None,
         computed_at=datetime.now(timezone.utc),
     )
+
+
+@app.get("/v1/{exchange}/stocks/{ticker}/ai-insight", response_model=AIInsightOut)
+async def get_ai_insight(exchange: str, ticker: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(AIInsight).where(
+            AIInsight.exchange_code == exchange.upper(),
+            AIInsight.ticker == ticker.upper(),
+        )
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"No AI insight available for {ticker}")
+    return row
 
 
 @app.get("/v1/{exchange}/stocks", response_model=list[dict])

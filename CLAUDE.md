@@ -127,6 +127,10 @@ intraday_snapshots (id, ticker, exchange_code, price, change_pct, volume, ts)
               — every 3-min datapoint; purged after 7 days; feeds 1D chart
 price_history (id, ticker, exchange_code, trade_date, open, high, low, close, volume, volume_xof)
               UNIQUE(ticker, exchange_code, trade_date) — daily candles; feeds 1W–5Y charts
+ai_insights   (id, ticker, exchange_code, sentiment, insight_text, buy_pct, hold_pct, sell_pct,
+               provider, generated_at, valid_until)
+              UNIQUE(ticker, exchange_code) — upserted on every weekly run
+              — 47 rows populated as of Aug 2026, refreshes every Sunday 06:00 UTC
 ```
 
 ### API endpoints (FastAPI)
@@ -139,6 +143,7 @@ GET  /v1/{exchange}/stocks                        → list[{ticker, name, sector
 GET  /v1/{exchange}/stocks/{ticker}/intraday      → list[IntradayPointOut]  (1D chart)
 GET  /v1/{exchange}/stocks/{ticker}/history       → list[HistoryPointOut]   (?range=1D|1W|1M|6M|1Y|5Y)
 GET  /v1/{exchange}/market-stats                  → MarketStatsOut
+GET  /v1/{exchange}/stocks/{ticker}/ai-insight    → AIInsightOut  (404 if not yet generated)
 ```
 
 Exchange is a path param so adding NSE/Nigeria tomorrow = zero frontend change.
@@ -162,6 +167,8 @@ Exchange is a path param so adding NSE/Nigeria tomorrow = zero frontend change.
 - APScheduler 3 (background scheduler)
 - BeautifulSoup4 + lxml (scraping)
 - Pydantic v2 + pydantic-settings
+- boto3 (AWS Bedrock for AI insights)
+- openai SDK (alternative AI provider)
 
 ### Infrastructure
 - PostgreSQL 16 (Docker)
@@ -180,43 +187,42 @@ Exchange is a path param so adding NSE/Nigeria tomorrow = zero frontend change.
 - [x] TopNav: "Felix" text logo + working search bar with dropdown + nav links
 - [x] Home page: two-column, BRVM index hero + MarketStatBar + Top movers 5×2 grid with rank watermarks + StockTable + right sidebar with sorted stock list
 - [x] Heatmap REMOVED (user request) — Home shows index sparkline instead
-- [x] StockDetail: TR-style layout, chart with dotted ref line + Y-axis, TR metrics grid (range bars + Mkt cap/PER), dividends bars, analysts section, events cards, related stocks, sign-up CTA sidebar
-- [x] PriceChart: dotted opening-price reference line, right-side Y-axis labels, colored price tag
+- [x] StockDetail: TR-style layout, chart with dotted ref line + Y-axis, TR metrics grid, dividends bars, analysts section, events cards, related stocks, sign-up CTA sidebar
+- [x] "En bref" quick-facts sidebar card COMMENTED OUT (user request)
+- [x] PriceChart: dotted opening-price reference line, right-side Y-axis labels, colored price tag, **interactive hover tooltip** showing real price at each date
 - [x] Portfolio / Watchlist: auth gate lock screens
 - [x] Backend: FastAPI app fully implemented with all endpoints
 - [x] Provider pattern: `MarketDataProvider` ABC → SikafinanceScraper (primary) + BRVMOfficialProvider (fallback)
-- [x] Database: all 5 tables with proper indexes and constraints
-- [x] Scraper scheduler: 3-min job + EOD job at 15:10 UTC
-- [x] 5-year backfill script (`backend/backfill.py`)
+- [x] Database: all 6 tables (exchanges, stocks, quotes, intraday_snapshots, price_history, ai_insights)
+- [x] Scraper scheduler: 3-min job + EOD job at 15:10 UTC + weekly AI job (Sunday 06:00 UTC)
+- [x] 5-year backfill COMPLETED — 46/47 stocks, 50,140 rows back to 2021 (SAFC has no history on Sikafinance)
 - [x] Docker Compose: db + backend + frontend (nginx)
 - [x] Frontend service layer (`src/services/api.ts`) — all API calls in one place
+- [x] **StockDetail wired to real API** — `useEffect` fetches `api.quote()`, `api.history()`, `api.intraday()` on ticker/period change; falls back to mock on error
+- [x] **PriceChart shows real data** — accepts `data?: ChartDataPoint[]` prop; uses real API data when available, seeded mock as fallback
+- [x] **CORS fixed** — `localhost:3000` added to allowed origins in `docker-compose.yml`
+- [x] **AI Insights** — `backend/ai/` module with `AIProvider` ABC → `BedrockProvider` (DeepSeek V3 via `deepseek.v3.2`) + `OpenAIProvider`. All 47 stocks have insights generated. Endpoint: `GET /v1/{exchange}/stocks/{ticker}/ai-insight`
+- [x] **AIInsightSection** rendered in StockDetail above "Recommandations" — sentiment badge, French analysis text, buy/hold/sell bar, disclaimer
+- [x] **Detailed backend logging** — per-ticker DEBUG logs, scrape cycle summaries with ▲/▼/= counts, HTTP timing, DB write timing, API request log middleware
+- [x] `LOG_LEVEL` env var controls verbosity (`DEBUG` = per-ticker detail, `INFO` = summaries only)
+- [x] AWS credentials mounted into backend container via `~/.aws:/root/.aws:ro` volume for local dev
 
 ### Pending 🔲 — Next tasks in priority order
 
-1. **Wire frontend to real API** — `Home.tsx` and `StockDetail.tsx` still use `mockData.ts`.
-   Replace with `api.quotes()` / `api.quote()` / `api.history()` calls.
-   Pattern: fetch on mount with `useEffect`, show skeleton while loading, fall back to mock on error.
-
-2. **Real PriceChart data** — `PriceChart.tsx` still generates seeded fake data.
-   Accept `data: HistoryPoint[]` prop; when `range === '1J'` use `api.intraday()`, otherwise `api.history(range)`.
-
-3. **Price flash animation** — when a quote updates, flash the price in green/red for 800ms.
+1. **Price flash animation** — when a quote updates, flash the price in green/red for 800ms.
    Add a `useRef` to detect price changes and apply a CSS class.
 
-4. **Working search** — TopNav search currently filters mockData client-side.
-   Once backend is live, replace with `api.quotes()` cached in context.
+2. **30s polling on Home page** — `setInterval` to re-fetch `api.quotes()` and refresh the table/movers.
 
-5. **Polling** — Add `setInterval` 30s refresh on Home page to re-fetch quotes.
+3. **Working search** — TopNav search currently filters `mockData` client-side. Replace with `api.quotes()` cached in a React context so all pages share one live list.
 
-6. **Functional auth gates** — Portfolio and Watchlist show lock screens. Wire the CTA buttons to a modal or `/login` route.
+4. **Functional auth gates** — Portfolio and Watchlist show lock screens. Wire the CTA buttons to a modal or `/login` route.
 
-7. **Settings page** — currently a placeholder. Add theme toggle (light only for now), language (FR), about section.
+5. **Settings page** — currently a placeholder. Add theme toggle (light only for now), language (FR), about section.
 
-8. **Error boundaries** — wrap pages in React error boundaries so a failed API call doesn't crash the whole app.
+6. **Error boundaries** — wrap pages in React error boundaries so a failed API call doesn't crash the whole app.
 
-9. **Historical backfill** — after first EC2 deploy: `docker compose exec backend python backfill.py`
-
-10. **EC2 deployment** — see deployment section below.
+7. **EC2 deployment** — see deployment section below. On EC2 use an IAM role instead of the `~/.aws` volume mount (remove the volume from `docker-compose.yml`).
 
 ---
 
@@ -320,14 +326,21 @@ For HTTPS, put an nginx/Caddy reverse proxy or AWS ALB in front.
 
 | File | What it does | Last changed |
 |---|---|---|
-| `backend/main.py` | FastAPI app, all routes, lifespan (seed + scheduler) | Session 90 |
-| `backend/scraper.py` | APScheduler jobs, upsert_quotes(), upsert_history(), eod_job() | Session 90 |
-| `backend/providers/sikafinance.py` | Scrape /marches/aaz, download CSV history | Session 90 |
-| `backend/models.py` | SQLAlchemy models for all 5 tables | Session 90 |
-| `frontend/src/services/api.ts` | All API calls: quotes, history, intraday, stats | Session 90 |
-| `frontend/src/pages/Home.tsx` | Two-column home, top movers, sidebar stock list | Session 90 |
-| `frontend/src/pages/StockDetail.tsx` | TR-style stock detail page | Session 90 |
+| `backend/main.py` | FastAPI app, all routes, lifespan; request-logging middleware (`log_requests`) | Aug 2 |
+| `backend/scraper.py` | APScheduler jobs: scrape_job (3 min), eod_job (15:10 UTC), ai_insights_job (Sun 06:00 UTC) | Aug 2 |
+| `backend/providers/sikafinance.py` | Scrape /marches/aaz + CSRF POST for CSV history; detailed HTTP timing logs | Aug 2 |
+| `backend/providers/brvm_official.py` | EOD fallback scraper from brvm.org | Session 90 |
+| `backend/models.py` | SQLAlchemy models for 6 tables incl. AIInsight | Aug 2 |
+| `backend/schemas.py` | Pydantic response models incl. AIInsightOut | Aug 2 |
+| `backend/config.py` | pydantic-settings; ai_enabled, bedrock_model_id, log_level fields | Aug 2 |
+| `backend/ai/base.py` | AIProvider ABC, StockContext dataclass, AIInsightResult dataclass | Aug 2 |
+| `backend/ai/bedrock.py` | BedrockProvider using boto3 converse() — French prompt, JSON parser | Aug 2 |
+| `backend/ai/openai_provider.py` | OpenAIProvider for OpenAI-compatible APIs (alternative to Bedrock) | Aug 2 |
+| `backend/backfill.py` | One-time 5-year history backfill — already run, 50,140 rows in DB | Aug 2 |
+| `frontend/src/services/api.ts` | All API calls: quotes, history, intraday, stats, aiInsight; AIInsightDTO type | Aug 2 |
+| `frontend/src/pages/Home.tsx` | Two-column home, top movers, sidebar stock list — still uses mockData for list | Session 90 |
+| `frontend/src/pages/StockDetail.tsx` | Wired to real API: live quote, chart data per period, AI insight section | Aug 2 |
 | `frontend/src/components/TopNav.tsx` | "Felix" text logo + search + nav | Session 90 |
-| `frontend/src/components/PriceChart.tsx` | SVG chart with ref line + Y-axis | Session 90 |
-| `frontend/src/data/mockData.ts` | 47 BRVM stocks — used until API is wired | Unchanged |
-| `docker-compose.yml` | 3-service production stack | Session 90 |
+| `frontend/src/components/PriceChart.tsx` | SVG chart: real data prop, interactive hover tooltip, mock fallback | Aug 2 |
+| `frontend/src/data/mockData.ts` | 47 BRVM stocks mock — still used for stock metadata, dividends, events, related | Unchanged |
+| `docker-compose.yml` | 3-service stack; AI enabled (deepseek.v3.2); ~/.aws mounted; LOG_LEVEL=DEBUG | Aug 2 |

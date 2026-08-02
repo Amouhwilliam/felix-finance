@@ -47,3 +47,18 @@ class MarketStatsOut(BaseModel):
     unchanged: int
     total_volume_xof: Optional[float]
     computed_at: datetime
+
+
+class AIInsightOut(BaseModel):
+    ticker: str
+    exchange_code: str
+    sentiment: str            # "bullish" | "neutral" | "bearish"
+    insight_text: str
+    buy_pct: int
+    hold_pct: int
+    sell_pct: int
+    provider: Optional[str]
+    generated_at: datetime
+    valid_until: datetime
+
+    model_config = {"from_attributes": True}

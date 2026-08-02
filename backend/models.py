@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models for Felix Finance."""
 from datetime import datetime, date
 from sqlalchemy import (
-    String, Float, Integer, DateTime, Date, BigInteger,
+    String, Float, Integer, DateTime, Date, BigInteger, Text,
     UniqueConstraint, Index, text
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -95,3 +95,23 @@ class PriceHistory(Base):
     close: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[int] = mapped_column(BigInteger, nullable=True)
     volume_xof: Mapped[float] = mapped_column(Float, nullable=True)
+
+
+class AIInsight(Base):
+    """Weekly AI-generated stock insights — cached for 7 days."""
+    __tablename__ = "ai_insights"
+    __table_args__ = (
+        UniqueConstraint("ticker", "exchange_code", name="uq_ai_insight_ticker_exchange"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    exchange_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    sentiment: Mapped[str] = mapped_column(String(10), nullable=False, default="neutral")
+    insight_text: Mapped[str] = mapped_column(Text, nullable=False)
+    buy_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=33)
+    hold_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=34)
+    sell_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=33)
+    provider: Mapped[str] = mapped_column(String(60), nullable=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    valid_until: Mapped[datetime] = mapped_column(DateTime, nullable=False)
