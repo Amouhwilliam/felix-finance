@@ -44,7 +44,7 @@ TICKER_SUFFIX: dict[str, str] = {
     "BOAM": "ml",
     "BOABF": "bf", "CBIBF": "bf", "ONTBF": "bf",
     "ETIT": "tg", "ORGT": "tg",
-    "SAFC": "sn", "BOAS": "sn",
+    "SAFC": "ci", "BOAS": "sn",
     "TTLS": "sn",
     "BNBC": "ci",
     "SVOC": "ci",
