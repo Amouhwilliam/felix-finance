@@ -120,6 +120,26 @@ export default function StockDetail() {
       }
     : null;
 
+  const baseChangePct = stock?.changePct ?? 0;
+  const basePrice = stock?.price ?? 0;
+
+  // For non-1J periods, derive change from the chart data range (hooks must be called unconditionally)
+  const { displayChangePct, displayChangeAbs } = useMemo(() => {
+    if (period === '1J') {
+      // No intraday data = market closed today → show 0 change
+      if (chartData.length < 2) return { displayChangePct: 0, displayChangeAbs: 0 };
+      return { displayChangePct: baseChangePct, displayChangeAbs: (basePrice * Math.abs(baseChangePct)) / 100 };
+    }
+    if (chartData.length < 2) {
+      // Other period still loading → fall back to day change
+      return { displayChangePct: baseChangePct, displayChangeAbs: (basePrice * Math.abs(baseChangePct)) / 100 };
+    }
+    const first = chartData[0].value;
+    const last = chartData[chartData.length - 1].value;
+    const pct = ((last - first) / first) * 100;
+    return { displayChangePct: pct, displayChangeAbs: last - first };
+  }, [period, chartData, baseChangePct, basePrice]);
+
   if (!stock) {
     return (
       <div className="mx-auto max-w-shell px-6 lg:px-10 py-24 text-center">
@@ -131,9 +151,18 @@ export default function StockDetail() {
     );
   }
 
-  const positive = stock.changePct >= 0;
+  const PERIOD_SINCE: Record<ChartPeriod, string> = {
+    '1J': 'Depuis 09:00',
+    '1S': 'Sur 1 semaine',
+    '1M': 'Sur 1 mois',
+    '3M': 'Sur 3 mois',
+    '1A': 'Sur 1 an',
+    '5A': 'Sur 5 ans',
+  };
+
+  const positive = displayChangePct >= 0;
   const changeColor = positive ? 'text-[#00A468]' : 'text-[#E23A3A]';
-  const absChange = (stock.price * Math.abs(stock.changePct)) / 100;
+  const absChange = Math.abs(displayChangeAbs);
 
   return (
     <div
@@ -177,8 +206,8 @@ export default function StockDetail() {
         </div>
 
         <div className={`mt-2.5 flex items-center gap-2 text-[14.5px] font-semibold num ${changeColor}`} data-testid="stock-change">
-          {positive ? '▲' : '▼'} {formatFcfa(absChange)} ({positive ? '+' : ''}{stock.changePct.toFixed(2)} %)
-          <span className="text-[#6B6B6B] font-normal text-[13px]">· Depuis 09:00</span>
+          {positive ? '▲' : '▼'} {formatFcfa(absChange)} ({positive ? '+' : ''}{displayChangePct.toFixed(2)} %)
+          <span className="text-[#6B6B6B] font-normal text-[13px]">· {PERIOD_SINCE[period]}</span>
         </div>
 
         {/* Period selector */}
