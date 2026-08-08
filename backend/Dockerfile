@@ -4,7 +4,7 @@ WORKDIR /app
 
 # System deps for lxml and psycopg2
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc libxml2-dev libxslt1-dev \
+    libpq-dev gcc libxml2-dev libxslt1-dev curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

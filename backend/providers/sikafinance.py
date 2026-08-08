@@ -273,18 +273,17 @@ class SikafinanceScraper(MarketDataProvider):
         logger.debug("SIKA  history %-8s  %s→%s  → %d rows", ticker, from_date, to_date, len(points))
         return points
 
-    def backfill_stock(self, ticker: str, years: int = 5) -> list[HistoryPoint]:
+    def backfill_stock(self, ticker: str, years: float = 5, months: int | None = None) -> list[HistoryPoint]:
         """
-        Fetch up to `years` of history in 1-month chunks.
+        Fetch history in 1-month chunks.
+        Pass `months` directly for a quick catch-up (e.g. months=2).
+        Pass `years` for a full historical load (default: 5 years = 60 months).
         Sikafinance enforces a 1-month maximum per download request.
-        Chunks are anchored to today's day-of-month so each window is ≤31 days.
-        The CSRF token is fetched ONCE per ticker and reused across all chunks;
-        if it expires mid-way, fetch_history automatically refreshes it.
         """
         import calendar as cal
         all_points: list[HistoryPoint] = []
         today = date.today()
-        total_months = years * 12
+        total_months = months if months is not None else round(years * 12)
         empty_streak = 0
 
         suffix = TICKER_SUFFIX.get(ticker.upper(), "ci")

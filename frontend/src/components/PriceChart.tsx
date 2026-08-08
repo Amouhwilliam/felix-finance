@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useCallback } from 'react';
 
-export type ChartPeriod = '1J' | '1S' | '1M' | '6M' | '1A' | '5A';
+export type ChartPeriod = '1J' | '1S' | '1M' | '3M' | '1A' | '5A';
 
 export interface ChartDataPoint {
   label: string;   // x-axis label shown in tooltip (e.g. "09:30", "26 juin", "Jan 2025")
@@ -12,86 +12,33 @@ interface PriceChartProps {
   changePct: number;
   lastPrice?: number;
   period?: ChartPeriod;
-  data?: ChartDataPoint[];      // real data from API; undefined = use mock
+  loading?: boolean;
+  data?: ChartDataPoint[];
   width?: number;
   height?: number;
 }
 
-// Period config for mock-data fallback only
-const PERIOD_CONFIG: Record<
-  ChartPeriod,
-  { points: number; noise: number; xLabels: string[]; showRefLine: boolean }
-> = {
-  '1J': { points: 90,  noise: 1.0, xLabels: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00'], showRefLine: true },
-  '1S': { points: 35,  noise: 1.6, xLabels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'],                   showRefLine: false },
-  '1M': { points: 22,  noise: 2.2, xLabels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],                  showRefLine: false },
-  '6M': { points: 130, noise: 3.0, xLabels: ['Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil'],          showRefLine: false },
-  '1A': { points: 260, noise: 3.8, xLabels: ['Août', 'Oct', 'Déc', 'Fév', 'Avr', 'Juil'],          showRefLine: false },
-  '5A': { points: 260, noise: 5.5, xLabels: ['2022', '2023', '2024', '2025', '2026'],               showRefLine: false },
+const PERIOD_CONFIG: Record<ChartPeriod, { showRefLine: boolean }> = {
+  '1J': { showRefLine: true },
+  '1S': { showRefLine: false },
+  '1M': { showRefLine: false },
+  '3M': { showRefLine: false },
+  '1A': { showRefLine: false },
+  '5A': { showRefLine: false },
 };
-
-const PERIOD_SEED_OFFSET: Record<ChartPeriod, number> = {
-  '1J': 0, '1S': 7777, '1M': 31337, '6M': 99991, '1A': 131071, '5A': 524287,
-};
-
-function seededRand(seed: number) {
-  let x = (seed || 1) & 0x7fffffff;
-  return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
-}
-function hashString(str: string): number {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
 
 const PAD_LEFT   = 8;
 const PAD_RIGHT  = 64;
 const PAD_TOP    = 20;
 const PAD_BOTTOM = 8;
 
-function buildMockPoints(
-  ticker: string, period: ChartPeriod, changePct: number, lastPrice: number,
-): ChartDataPoint[] {
-  const cfg = PERIOD_CONFIG[period];
-  const N = cfg.points;
-  const seedBase = hashString(ticker) + PERIOD_SEED_OFFSET[period];
-  const rand = seededRand(seedBase + Math.round(Math.abs(changePct) * 10));
-  const drift = changePct / 100;
-  const noiseScale = 0.006 * cfg.noise;
-  const meanRevert = period === '1J' ? 0.12 : period === '1S' ? 0.09 : 0.06;
-
-  let y = 0.5;
-  const normalized: number[] = [];
-  for (let i = 0; i < N; i++) {
-    const t = i / (N - 1);
-    const target = 0.52 - drift * t;
-    y += (target - y) * meanRevert + (rand() - 0.5) * noiseScale;
-    normalized.push(y);
-  }
-
-  const minN = Math.min(...normalized);
-  const maxN = Math.max(...normalized);
-  const rangeN = maxN - minN || 0.001;
-
-  // Scale normalized values to real price range
-  const swingFactor =
-    period === '5A' ? 0.35 : period === '1A' ? 0.20 : period === '6M' ? 0.12 : 0.05;
-  const baseSwing = Math.max(swingFactor, Math.abs(changePct / 100) * 2);
-  const priceMin = lastPrice * (1 - baseSwing * 1.2);
-  const priceMax = lastPrice * (1 + baseSwing * 0.6);
-  const priceRange = priceMax - priceMin;
-
-  return normalized.map((n, i) => ({
-    label: `${i}`,
-    value: priceMin + ((n - minN) / rangeN) * priceRange,
-  }));
-}
 
 export default function PriceChart({
   ticker,
   changePct,
   lastPrice,
   period = '1J',
+  loading = false,
   data,
   width = 720,
   height = 300,
@@ -105,12 +52,10 @@ export default function PriceChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Resolve data: use real data if provided and non-empty, else mock
   const points: ChartDataPoint[] = useMemo(() => {
     if (data && data.length > 1) return data;
-    if (lastPrice) return buildMockPoints(ticker, period, changePct, lastPrice);
     return [];
-  }, [data, ticker, period, changePct, lastPrice]);
+  }, [data]);
 
   const { coords, linePath, areaPath, openY, priceLabels } = useMemo(() => {
     if (points.length < 2) return { coords: [], linePath: '', areaPath: '', openY: 0, priceLabels: [] };
@@ -185,13 +130,64 @@ export default function PriceChart({
   const formatPrice = (v: number) =>
     v >= 1000 ? Math.round(v).toLocaleString('fr-FR') : v.toFixed(2);
 
-  if (points.length < 2) {
+  // Initial load with no previous data — show a subtle pulsing skeleton line
+  if (loading && points.length < 2) {
     return (
-      <svg width="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" data-testid="price-chart">
-        <text x={width / 2} y={height / 2} textAnchor="middle" fontSize="12" fill="#A1A1A6" fontFamily="Inter, system-ui">
-          Données indisponibles
-        </text>
+      <svg
+        width="100%"
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        data-testid="price-chart-loading"
+      >
+        <line
+          x1={PAD_LEFT} y1={height / 2}
+          x2={width - PAD_RIGHT} y2={height / 2}
+          stroke="#E8E8ED" strokeWidth="2" strokeLinecap="round"
+          style={{ animation: 'pulse 1.8s ease-in-out infinite' }}
+        />
+        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
       </svg>
+    );
+  }
+
+  // No intraday data today (market closed) — flat dashed line at last price
+  if (!loading && points.length < 2 && period === '1J' && typeof lastPrice === 'number' && lastPrice > 0) {
+    const lineY = height / 2;
+    return (
+      <svg
+        width="100%"
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        data-testid="price-chart-flat"
+      >
+        <line
+          x1={PAD_LEFT} y1={lineY} x2={width - PAD_RIGHT} y2={lineY}
+          stroke="#D1D1D6" strokeWidth="1.5" strokeDasharray="4 7" strokeLinecap="round"
+        />
+        <g transform={`translate(${width - PAD_RIGHT + 4}, ${lineY - 10})`}>
+          <rect width={PAD_RIGHT - 8} height="20" rx="5" fill="rgba(0,0,0,0.06)" />
+          <text x={(PAD_RIGHT - 8) / 2} y="14" textAnchor="middle"
+            fontSize="11" fontWeight="600" fill="#6B6B6B" fontFamily="Inter, system-ui, sans-serif">
+            {formatPrice(lastPrice)}
+          </text>
+        </g>
+      </svg>
+    );
+  }
+
+  // No data for other periods
+  if (!loading && points.length < 2) {
+    return (
+      <div
+        style={{ height }}
+        className="w-full flex flex-col items-center justify-center gap-2"
+        data-testid="price-chart-empty"
+      >
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#D1D1D6" strokeWidth="1.5">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+        <span className="text-[13px] text-[#A1A1A6]">Aucune donnée pour cette période</span>
+      </div>
     );
   }
 
@@ -204,7 +200,11 @@ export default function PriceChart({
       data-testid="price-chart"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{ cursor: hoverIdx !== null ? 'crosshair' : 'default' }}
+      style={{
+        cursor: hoverIdx !== null ? 'crosshair' : 'default',
+        opacity: loading ? 0.45 : 1,
+        transition: 'opacity 0.2s ease',
+      }}
     >
       <defs>
         <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
@@ -284,6 +284,3 @@ export default function PriceChart({
   );
 }
 
-export function getXLabels(period: ChartPeriod): string[] {
-  return PERIOD_CONFIG[period].xLabels;
-}

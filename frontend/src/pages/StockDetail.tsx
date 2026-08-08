@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Star, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
-import PriceChart, { getXLabels } from '../components/PriceChart';
+import PriceChart from '../components/PriceChart';
 import type { ChartPeriod, ChartDataPoint } from '../components/PriceChart';
 import Logo from '../components/Logo';
 import { getStockDetail, relatedStocks } from '../data/mockData';
@@ -10,14 +10,13 @@ import { formatFcfa, formatPct } from '../lib/format';
 import type { AIInsightDTO } from '../services/api';
 import type { Stock, Dividend, CalendarEvent } from '../types';
 
-const PERIODS: ChartPeriod[] = ['1J', '1S', '1M', '6M', '1A', '5A'];
+const PERIODS: ChartPeriod[] = ['1J', '1S', '1M', '3M', '1A', '5A'];
 
-// Map frontend period labels to API range params
 const PERIOD_TO_API_RANGE: Record<ChartPeriod, string | null> = {
-  '1J': null,   // uses intraday endpoint
+  '1J': null,
   '1S': '1W',
   '1M': '1M',
-  '6M': '6M',
+  '3M': '3M',
   '1A': '1Y',
   '5A': '5Y',
 };
@@ -31,7 +30,21 @@ function fmtHistoryLabel(trade_date: string, period: ChartPeriod): string {
   if (period === '5A' || period === '1A') {
     return d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
   }
+  if (period === '1S') {
+    return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+/** Pick ~5 evenly-spaced labels from chartData for the x-axis. */
+function deriveXLabels(data: ChartDataPoint[], period: ChartPeriod): string[] {
+  if (period === '1J') return ['09:00', '10:00', '11:00', '12:00', '13:30', '15:00'];
+  if (data.length < 2) return [];
+  const n = Math.min(5, data.length);
+  return Array.from({ length: n }, (_, i) => {
+    const idx = Math.round((i / (n - 1)) * (data.length - 1));
+    return data[idx].label;
+  });
 }
 
 export default function StockDetail() {
@@ -47,8 +60,9 @@ export default function StockDetail() {
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveChangePct, setLiveChangePct] = useState<number | null>(null);
 
-  // Real chart data — undefined = not yet fetched (use mock), [] = fetched but empty
-  const [chartData, setChartData] = useState<ChartDataPoint[] | undefined>(undefined);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const prevTickerRef = useRef<string | undefined>(undefined);
 
   // AI insight — null = loading, undefined = not available
   const [aiInsight, setAiInsight] = useState<AIInsightDTO | null | undefined>(null);
@@ -70,32 +84,32 @@ export default function StockDetail() {
   // Fetch chart data whenever ticker or period changes
   useEffect(() => {
     if (!ticker) return;
-    setChartData(undefined); // reset while loading
+
+    const tickerChanged = prevTickerRef.current !== ticker;
+    prevTickerRef.current = ticker;
+
+    setChartLoading(true);
+    if (tickerChanged) setChartData([]); // only clear when navigating to a new stock
 
     const apiRange = PERIOD_TO_API_RANGE[period];
     if (apiRange === null) {
-      // Intraday (1J)
       api.intraday('BRVM', ticker)
         .then((pts) => {
-          if (pts.length > 1) {
-            setChartData(pts.map(p => ({ label: fmtIntradayLabel(p.ts), value: p.price })));
-          } else {
-            setChartData(undefined); // fall back to mock
-          }
+          setChartData(pts.length > 1 ? pts.map(p => ({ label: fmtIntradayLabel(p.ts), value: p.price })) : []);
         })
-        .catch(() => setChartData(undefined));
+        .catch(() => setChartData([]))
+        .finally(() => setChartLoading(false));
     } else {
       api.history('BRVM', ticker, apiRange)
         .then((pts) => {
-          if (pts.length > 1) {
-            setChartData(pts.map(p => ({ label: fmtHistoryLabel(p.trade_date, period), value: p.close })));
-          } else {
-            setChartData(undefined); // fall back to mock
-          }
+          setChartData(pts.length > 1 ? pts.map(p => ({ label: fmtHistoryLabel(p.trade_date, period), value: p.close })) : []);
         })
-        .catch(() => setChartData(undefined));
+        .catch(() => setChartData([]))
+        .finally(() => setChartLoading(false));
     }
   }, [ticker, period]);
+
+  const xLabels = useMemo(() => deriveXLabels(chartData, period), [chartData, period]);
 
   // Merge live data on top of mock
   const stock = mockStock
@@ -192,20 +206,21 @@ export default function StockDetail() {
             changePct={stock.changePct}
             lastPrice={stock.price}
             period={period}
+            loading={chartLoading}
             data={chartData}
             width={760}
             height={300}
           />
         </div>
 
-        {/* X-axis labels — update with period */}
-        <div
-          className="text-[11px] text-[#A1A1A6] num pr-16 mt-1 flex justify-between"
-        >
-          {getXLabels(period).map((t) => (
-            <span key={t}>{t}</span>
-          ))}
-        </div>
+        {/* X-axis labels — derived from actual data dates */}
+        {!chartLoading && chartData.length > 1 && (
+          <div className="text-[11px] text-[#A1A1A6] num pr-16 mt-1 flex justify-between">
+            {xLabels.map((t, i) => (
+              <span key={i}>{t}</span>
+            ))}
+          </div>
+        )}
 
 
         {/* ── DIVIDENDS ── */}

@@ -101,9 +101,14 @@ quotes (id, ticker, exchange_code, price, open, high, low, prev_close,
 -- Intraday datapoints → 1D chart (7-day retention, auto-purged)
 intraday_snapshots (id, ticker, exchange_code, price, change_pct, volume, ts)
 
--- Daily OHLCV candles → 1W / 1M / 6M / 1Y / 5Y charts
+-- Daily OHLCV candles → 1W / 1M / 3M / 1Y / 5Y charts
 price_history (id, ticker, exchange_code, trade_date, open, high, low, close, volume, volume_xof)
   UNIQUE (ticker, exchange_code, trade_date)
+
+-- AI sentiment analysis (refreshed every Sunday 06:00 UTC)
+ai_insights (id, ticker, exchange_code, sentiment, insight_text, buy_pct, hold_pct, sell_pct,
+             provider, generated_at, valid_until)
+  UNIQUE (ticker, exchange_code)
 ```
 
 ---
@@ -116,8 +121,9 @@ GET  /v1/{exchange}/quotes                         all latest quotes
 GET  /v1/{exchange}/quotes/{ticker}                single quote
 GET  /v1/{exchange}/stocks                         stock directory
 GET  /v1/{exchange}/stocks/{ticker}/intraday       1D chart (?date=YYYY-MM-DD)
-GET  /v1/{exchange}/stocks/{ticker}/history        OHLCV (?range=1D|1W|1M|6M|1Y|5Y)
+GET  /v1/{exchange}/stocks/{ticker}/history        OHLCV (?range=1W|1M|3M|1Y|5Y)
 GET  /v1/{exchange}/market-stats                   aggregate stats
+GET  /v1/{exchange}/stocks/{ticker}/ai-insight     AI sentiment + recommendation
 ```
 
 Exchange is always uppercase: `BRVM`, `NSE`, `GSE`.
@@ -197,12 +203,49 @@ npm start
 ```bash
 docker compose up -d --build
 
-# One-time historical backfill (run after first deploy)
-docker compose exec backend python backfill.py
-
 # View logs
 docker compose logs -f backend
 ```
+
+### Historical backfill
+
+The backfill script fetches up to 5 years of OHLCV data from Sikafinance for all 47 BRVM stocks.
+Run it once after the first deploy, and again any time the backend has been down for several days.
+
+```bash
+# Full 5-year backfill — first deploy only (~90 min)
+docker compose exec backend python backfill.py
+
+# Quick catch-up after downtime — last 2 months only (~3 min)
+docker compose exec backend python backfill.py --months 2
+
+# Specific tickers only
+docker compose exec backend python backfill.py --tickers SNTS,ETIT,BOAC
+
+# Run in background (fire-and-forget)
+docker compose exec -d backend python backfill.py --months 2
+```
+
+Check progress or confirm completion:
+```bash
+# Count tickers with data up to the current week
+docker compose exec db psql -U felix -d felix -c "
+SELECT
+  SUM(CASE WHEN MAX(trade_date) >= CURRENT_DATE - 7 THEN 1 ELSE 0 END) AS up_to_date,
+  SUM(CASE WHEN MAX(trade_date) < CURRENT_DATE - 7  THEN 1 ELSE 0 END) AS stale,
+  COUNT(DISTINCT ticker) AS total
+FROM price_history WHERE exchange_code='BRVM' GROUP BY ticker;"
+
+# List any tickers that are still stale
+docker compose exec db psql -U felix -d felix -c "
+SELECT ticker, MAX(trade_date) AS last_date
+FROM price_history WHERE exchange_code='BRVM'
+GROUP BY ticker HAVING MAX(trade_date) < CURRENT_DATE - 7
+ORDER BY ticker;"
+```
+
+> **Note:** The backfill is killed if the backend container is recreated mid-run
+> (`docker compose up --build`). Always re-run it after a forced container rebuild.
 
 ---
 
@@ -239,12 +282,12 @@ For HTTPS, add an AWS ALB with ACM certificate in front of the EC2 instance.
 
 ## What's Next
 
-1. **Wire frontend to real API** — Home and StockDetail still use mockData; replace with `api.quotes()` / `api.history()` calls with loading skeletons
-2. **Real chart data** — PriceChart still generates seeded fake data; accept `data: HistoryPoint[]` prop
-3. **Price flash animation** — 800ms green/red flash on price update
-4. **30-second polling** — `setInterval` refresh on Home page
-5. **Auth modal** — Portfolio/Watchlist CTA buttons open a sign-up/login modal
-6. **Error boundaries** — wrap pages so API failures don't crash the app
+1. **Price flash animation** — 800ms green/red flash when a quote updates (add `useRef` to detect changes, apply CSS class)
+2. **30-second polling on Home** — `setInterval` to re-fetch `api.quotes()` and refresh movers + table
+3. **Live search** — replace TopNav's mock-data filter with `api.quotes()` cached in React context
+4. **Auth modal** — Portfolio/Watchlist CTA buttons open a sign-up/login modal
+5. **Error boundaries** — wrap pages in React error boundaries so a failed API call doesn't crash the app
+6. **EC2 deploy** — use an IAM role instead of the `~/.aws` volume mount; remove that volume from `docker-compose.yml`
 
 ---
 
