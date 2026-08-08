@@ -29,15 +29,26 @@ export function formatPct(pct: number, opts: { withSign?: boolean } = {}): strin
   return `${sign}${pct.toFixed(2)} %`;
 }
 
-/** Format a FCFA amount using dots as thousands separator: 47.240 FCFA */
-export function formatFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString('de-DE')} FCFA`;
+/** Map currency code to display label */
+function currencyLabel(currency: string): string {
+  return currency === 'XOF' ? 'FCFA' : currency;
 }
 
-export function formatCompactFcfa(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1e12) return `${(n / 1e12).toFixed(2).replace('.', ',')} T FCFA`;
-  if (abs >= 1e9) return `${(n / 1e9).toFixed(2).replace('.', ',')} Md FCFA`;
-  if (abs >= 1e6) return `${(n / 1e6).toFixed(1).replace('.', ',')} M FCFA`;
-  return formatFcfa(n);
+/** Format an amount with the exchange's currency label */
+export function formatCurrency(n: number, currency = 'XOF'): string {
+  return `${Math.round(n).toLocaleString('de-DE')} ${currencyLabel(currency)}`;
 }
+
+export function formatCompactCurrency(n: number, currency = 'XOF'): string {
+  const label = currencyLabel(currency);
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return `${(n / 1e12).toFixed(2).replace('.', ',')} T ${label}`;
+  if (abs >= 1e9) return `${(n / 1e9).toFixed(2).replace('.', ',')} Md ${label}`;
+  if (abs >= 1e6) return `${(n / 1e6).toFixed(1).replace('.', ',')} M ${label}`;
+  return formatCurrency(n, currency);
+}
+
+/** @deprecated use formatCurrency(n, currency) */
+export const formatFcfa = (n: number) => formatCurrency(n, 'XOF');
+/** @deprecated use formatCompactCurrency(n, currency) */
+export const formatCompactFcfa = (n: number) => formatCompactCurrency(n, 'XOF');

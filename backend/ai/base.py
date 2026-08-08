@@ -1,6 +1,6 @@
 """Model-agnostic AI provider interface for stock insights."""
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -22,11 +22,12 @@ class StockContext:
 
 @dataclass
 class AIInsightResult:
-    sentiment: str           # "bullish" | "neutral" | "bearish"
-    insight_text: str        # 2-3 sentence plain-language analysis in French
-    buy_pct: int             # suggested buy consensus 0-100
+    sentiment: str                        # "bullish" | "neutral" | "bearish"
+    insight_text: str                     # 2-3 sentences in French
+    buy_pct: int                          # suggested buy consensus 0-100
     hold_pct: int
-    sell_pct: int            # buy + hold + sell must equal 100
+    sell_pct: int                         # buy + hold + sell must equal 100
+    insight_text_en: Optional[str] = field(default=None)  # same analysis in English
 
 
 class AIProvider(ABC):

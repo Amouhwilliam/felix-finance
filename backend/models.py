@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models for Felix Finance."""
 from datetime import datetime, date
+from typing import Optional
 from sqlalchemy import (
     String, Float, Integer, DateTime, Date, BigInteger, Text,
     UniqueConstraint, Index, text
@@ -109,6 +110,7 @@ class AIInsight(Base):
     exchange_code: Mapped[str] = mapped_column(String(10), nullable=False)
     sentiment: Mapped[str] = mapped_column(String(10), nullable=False, default="neutral")
     insight_text: Mapped[str] = mapped_column(Text, nullable=False)
+    insight_text_en: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     buy_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=33)
     hold_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=34)
     sell_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=33)

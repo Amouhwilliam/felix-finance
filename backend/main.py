@@ -21,7 +21,7 @@ from sqlalchemy import select, func, text
 
 from config import settings
 from database import engine, get_db, Base
-from models import Quote, IntradaySnapshot, PriceHistory, Stock, AIInsight
+from models import Quote, IntradaySnapshot, PriceHistory, Stock, AIInsight, Exchange
 from schemas import QuoteOut, HistoryPointOut, IntradayPointOut, MarketStatsOut, AIInsightOut
 from scraper import start_scheduler
 
@@ -41,6 +41,10 @@ async def lifespan(app: FastAPI):
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Idempotent column additions for schema evolution (no Alembic needed)
+        await conn.execute(text(
+            "ALTER TABLE ai_insights ADD COLUMN IF NOT EXISTS insight_text_en TEXT;"
+        ))
     logger.info("Database tables ensured")
 
     # Seed exchange and stock list on first boot
@@ -263,6 +267,9 @@ async def get_history(
 
 @app.get("/v1/{exchange}/market-stats", response_model=MarketStatsOut)
 async def get_market_stats(exchange: str, db: AsyncSession = Depends(get_db)):
+    exc = await db.get(Exchange, exchange.upper())
+    currency = exc.currency if exc else "XOF"
+
     result = await db.execute(
         select(Quote).where(Quote.exchange_code == exchange.upper())
     )
@@ -272,6 +279,7 @@ async def get_market_stats(exchange: str, db: AsyncSession = Depends(get_db)):
     total_vol = sum(q.volume_xof or 0 for q in quotes)
     return MarketStatsOut(
         exchange_code=exchange.upper(),
+        currency=currency,
         total=len(quotes),
         up=up,
         down=down,

@@ -40,6 +40,7 @@ export interface IntradayPoint {
 
 export interface MarketStats {
   exchange_code: string;
+  currency: string;
   total: number;
   up: number;
   down: number;
@@ -53,6 +54,7 @@ export interface AIInsightDTO {
   exchange_code: string;
   sentiment: 'bullish' | 'neutral' | 'bearish';
   insight_text: string;
+  insight_text_en?: string | null;
   buy_pct: number;
   hold_pct: number;
   sell_pct: number;

@@ -29,11 +29,12 @@ def _build_user_prompt(ctx: StockContext) -> str:
         lines.append(f"Plus bas 52 sem.  : {ctx.price_52w_low:,.0f} FCFA")
 
     lines.append(
-        "\nSur la base des données ci-dessus, génère une analyse courte (2-3 phrases en français) "
+        "\nSur la base des données ci-dessus, génère une analyse courte (2-3 phrases) "
         "et une recommandation consensus (achat/conservation/vente en %). "
         "Réponds UNIQUEMENT avec ce JSON (aucun autre texte) :\n"
         '{"sentiment": "bullish"|"neutral"|"bearish", '
-        '"insight_text": "...", '
+        '"insight_text": "...(en français)...", '
+        '"insight_text_en": "...(in English)...", '
         '"buy_pct": <int>, "hold_pct": <int>, "sell_pct": <int>}'
     )
     return "\n".join(lines)
@@ -66,6 +67,7 @@ def _parse_response(raw: str) -> Optional[AIInsightResult]:
         return AIInsightResult(
             sentiment=sentiment,
             insight_text=data.get("insight_text", ""),
+            insight_text_en=data.get("insight_text_en") or None,
             buy_pct=buy,
             hold_pct=hold,
             sell_pct=sell,
@@ -115,6 +117,11 @@ class BedrockProvider(AIProvider):
                 f"{ctx.name} ({ctx.ticker}) est actuellement à {ctx.current_price:,.0f} FCFA "
                 f"avec une variation de {ctx.change_pct_today:+.2f} % aujourd'hui. "
                 "Analyse IA temporairement indisponible."
+            ),
+            insight_text_en=(
+                f"{ctx.name} ({ctx.ticker}) is currently at {ctx.current_price:,.0f} FCFA "
+                f"with a {ctx.change_pct_today:+.2f}% change today. "
+                "AI analysis temporarily unavailable."
             ),
             buy_pct=33,
             hold_pct=34,

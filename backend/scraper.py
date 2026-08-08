@@ -241,21 +241,23 @@ def ai_insights_job() -> None:
                     cur.execute(
                         """
                         INSERT INTO ai_insights
-                            (ticker, exchange_code, sentiment, insight_text, buy_pct, hold_pct,
-                             sell_pct, provider, generated_at, valid_until)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            (ticker, exchange_code, sentiment, insight_text, insight_text_en,
+                             buy_pct, hold_pct, sell_pct, provider, generated_at, valid_until)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (ticker, exchange_code) DO UPDATE SET
-                            sentiment    = EXCLUDED.sentiment,
-                            insight_text = EXCLUDED.insight_text,
-                            buy_pct      = EXCLUDED.buy_pct,
-                            hold_pct     = EXCLUDED.hold_pct,
-                            sell_pct     = EXCLUDED.sell_pct,
-                            provider     = EXCLUDED.provider,
-                            generated_at = EXCLUDED.generated_at,
-                            valid_until  = EXCLUDED.valid_until
+                            sentiment       = EXCLUDED.sentiment,
+                            insight_text    = EXCLUDED.insight_text,
+                            insight_text_en = EXCLUDED.insight_text_en,
+                            buy_pct         = EXCLUDED.buy_pct,
+                            hold_pct        = EXCLUDED.hold_pct,
+                            sell_pct        = EXCLUDED.sell_pct,
+                            provider        = EXCLUDED.provider,
+                            generated_at    = EXCLUDED.generated_at,
+                            valid_until     = EXCLUDED.valid_until
                         """,
                         (
                             ticker, exchange, result.sentiment, result.insight_text,
+                            result.insight_text_en,
                             result.buy_pct, result.hold_pct, result.sell_pct,
                             provider.provider_name, now, valid_until,
                         ),

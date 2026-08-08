@@ -41,6 +41,7 @@ class IntradayPointOut(BaseModel):
 
 class MarketStatsOut(BaseModel):
     exchange_code: str
+    currency: str
     total: int
     up: int
     down: int
@@ -54,6 +55,7 @@ class AIInsightOut(BaseModel):
     exchange_code: str
     sentiment: str            # "bullish" | "neutral" | "bearish"
     insight_text: str
+    insight_text_en: Optional[str]
     buy_pct: int
     hold_pct: int
     sell_pct: int

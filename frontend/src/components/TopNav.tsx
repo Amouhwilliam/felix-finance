@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { STOCKS } from '../data/mockData';
 
 export default function TopNav() {
@@ -8,6 +9,8 @@ export default function TopNav() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
+  const { t, i18n } = useTranslation();
+  const toggleLang = () => i18n.changeLanguage(i18n.language === 'fr' ? 'en' : 'fr');
 
   const results = query.trim().length >= 1
     ? STOCKS.filter(
@@ -46,7 +49,7 @@ export default function TopNav() {
               value={query}
               onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
               onFocus={() => setOpen(true)}
-              placeholder="Rechercher des actions, secteurs..."
+              placeholder={t('nav.search_placeholder')}
               className="bg-transparent w-full outline-none text-[13.5px] text-[#0A0A0A] placeholder:text-[#A1A1A6]"
               data-testid="nav-search"
             />
@@ -81,7 +84,7 @@ export default function TopNav() {
             }
             data-testid="nav-markets"
           >
-            Marchés
+            {t('nav.markets')}
           </NavLink>
           <NavLink
             to="/watchlist"
@@ -89,22 +92,30 @@ export default function TopNav() {
               `text-[14px] font-medium transition-colors ${isActive ? 'text-[#0A0A0A]' : 'text-[#6B6B6B] hover:text-[#0A0A0A]'}`
             }
           >
-            Liste
+            {t('nav.watchlist')}
           </NavLink>
         </nav>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
+            onClick={toggleLang}
+            className="hidden sm:inline-flex h-9 px-3 items-center text-[12px] font-semibold text-[#6B6B6B] hover:bg-[#F5F5F7] rounded-full transition-colors tracking-wide"
+            data-testid="btn-lang"
+            title="Switch language"
+          >
+            {i18n.language === 'fr' ? 'EN' : 'FR'}
+          </button>
+          <button
             className="hidden sm:inline-flex h-9 px-4 items-center text-[13.5px] font-medium text-[#0A0A0A] hover:bg-[#F5F5F7] rounded-full transition-colors"
             data-testid="btn-login"
           >
-            Se connecter
+            {t('nav.login')}
           </button>
           <button
             className="inline-flex h-9 px-4 items-center rounded-full bg-[#0A0A0A] text-white text-[13.5px] font-medium hover:bg-[#222] transition-colors"
             data-testid="btn-signup"
           >
-            Commencer
+            {t('nav.signup')}
           </button>
         </div>
       </div>

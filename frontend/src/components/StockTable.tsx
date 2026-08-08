@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Logo from './Logo';
 import { STOCKS } from '../data/mockData';
-import { formatFcfa, formatPct, formatCompactFcfa } from '../lib/format';
+import { formatCurrency, formatPct, formatCompactCurrency } from '../lib/format';
+import { useExchange } from '../contexts/ExchangeContext';
 import type { Stock } from '../types';
 
 type SortKey = 'name' | 'price' | 'change' | 'cap';
@@ -17,6 +19,8 @@ export default function StockTable({ stocks = STOCKS }: Props) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const { t } = useTranslation();
+  const { currency } = useExchange();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -68,26 +72,26 @@ export default function StockTable({ stocks = STOCKS }: Props) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher une valeur, un ticker, un secteur…"
+            placeholder={t('table.search_placeholder')}
             className="bg-transparent w-full outline-none text-[14px] text-ink placeholder:text-muted"
             data-testid="stock-table-search"
           />
         </label>
         <div className="hidden md:flex items-center gap-1 text-[13px]">
-          <SortPill label="Nom" active={sortKey === 'name'} dir={sortDir} onClick={() => onSort('name')} />
-          <SortPill label="Prix" active={sortKey === 'price'} dir={sortDir} onClick={() => onSort('price')} />
-          <SortPill label="Variation" active={sortKey === 'change'} dir={sortDir} onClick={() => onSort('change')} />
-          <SortPill label="Cap." active={sortKey === 'cap'} dir={sortDir} onClick={() => onSort('cap')} />
+          <SortPill label={t('table.sort_name')} active={sortKey === 'name'} dir={sortDir} onClick={() => onSort('name')} />
+          <SortPill label={t('table.sort_price')} active={sortKey === 'price'} dir={sortDir} onClick={() => onSort('price')} />
+          <SortPill label={t('table.sort_change')} active={sortKey === 'change'} dir={sortDir} onClick={() => onSort('change')} />
+          <SortPill label={t('table.sort_cap')} active={sortKey === 'cap'} dir={sortDir} onClick={() => onSort('cap')} />
         </div>
       </div>
 
       <div className="rounded-card border hairline overflow-hidden bg-white shadow-card">
         <div className="hidden md:grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center px-5 h-11 bg-surface text-[11px] font-semibold text-muted uppercase tracking-widest">
-          <span>Valeur</span>
-          <span>Secteur</span>
-          <span className="text-right">Prix</span>
-          <span className="text-right">Var. %</span>
-          <span className="text-right">Capitalisation</span>
+          <span>{t('table.col_name')}</span>
+          <span>{t('table.col_sector')}</span>
+          <span className="text-right">{t('table.col_price')}</span>
+          <span className="text-right">{t('table.col_change')}</span>
+          <span className="text-right">{t('table.col_cap')}</span>
         </div>
 
         <ul>
@@ -106,7 +110,7 @@ export default function StockTable({ stocks = STOCKS }: Props) {
                   </div>
                 </div>
                 <div className="text-[13px] text-muted truncate">{s.sector}</div>
-                <div className="text-right num text-[14px] font-semibold">{formatFcfa(s.price)}</div>
+                <div className="text-right num text-[14px] font-semibold">{formatCurrency(s.price, currency)}</div>
                 <div
                   className={`text-right num text-[14px] font-semibold ${
                     s.changePct > 0
@@ -119,7 +123,7 @@ export default function StockTable({ stocks = STOCKS }: Props) {
                   {formatPct(s.changePct)}
                 </div>
                 <div className="text-right num text-[13px] text-ink">
-                  {formatCompactFcfa(s.mktCapBn * 1e9)}
+                  {formatCompactCurrency(s.mktCapBn * 1e9, currency)}
                 </div>
               </Link>
             </li>
@@ -127,7 +131,7 @@ export default function StockTable({ stocks = STOCKS }: Props) {
 
           {filtered.length === 0 && (
             <li className="px-5 py-16 text-center text-muted text-[14px]">
-              Aucune valeur ne correspond à votre recherche.
+              {t('table.empty')}
             </li>
           )}
         </ul>

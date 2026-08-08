@@ -50,5 +50,6 @@ class OpenAIProvider(AIProvider):
         return AIInsightResult(
             sentiment="neutral",
             insight_text=f"Analyse IA temporairement indisponible pour {ctx.ticker}.",
+            insight_text_en=f"AI analysis temporarily unavailable for {ctx.ticker}.",
             buy_pct=33, hold_pct=34, sell_pct=33,
         )

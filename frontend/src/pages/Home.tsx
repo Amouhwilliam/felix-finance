@@ -1,27 +1,15 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Dropdown from '../components/Dropdown';
 import Logo from '../components/Logo';
 import StockTable from '../components/StockTable';
 import MarketStatBar from '../components/MarketStatBar';
 import { STOCKS } from '../data/mockData';
 import { api } from '../services/api';
-import { formatFcfa, formatPct } from '../lib/format';
+import { formatCurrency, formatPct } from '../lib/format';
+import { useExchange } from '../contexts/ExchangeContext';
 import type { Stock } from '../types';
-
-const PERIODS = [
-  { value: '1D', label: '1J' },
-  { value: '1W', label: '1S' },
-  { value: '1M', label: '1M' },
-  { value: '6M', label: '6M' },
-  { value: '1Y', label: '1A' },
-];
-
-const SORT_OPTIONS = [
-  { value: 'change_desc', label: '+ Forte hausse' },
-  { value: 'change_asc', label: '+ Forte baisse' },
-  { value: 'cap_desc', label: 'Cap. desc.' },
-];
 
 function quotesToStocks(quotes: Awaited<ReturnType<typeof api.quotes>>): Stock[] {
   return quotes.map((q) => {
@@ -43,6 +31,22 @@ export default function Home() {
   const [sidebarSort, setSidebarSort] = useState('change_desc');
   const [liveStocks, setLiveStocks] = useState<Stock[]>(STOCKS);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { t } = useTranslation();
+  const { currency } = useExchange();
+
+  const PERIODS = [
+    { value: '1D', label: t('stock.period_1d') },
+    { value: '1W', label: t('stock.period_1w') },
+    { value: '1M', label: t('stock.period_1m') },
+    { value: '6M', label: '6M' },
+    { value: '1Y', label: t('stock.period_1y') },
+  ];
+
+  const SORT_OPTIONS = [
+    { value: 'change_desc', label: t('home.sort_up') },
+    { value: 'change_asc', label: t('home.sort_down') },
+    { value: 'cap_desc', label: t('home.sort_cap') },
+  ];
 
   const fetchQuotes = () => {
     api.quotes('BRVM')
@@ -80,7 +84,7 @@ export default function Home() {
                   <span className="absolute inline-flex w-full h-full rounded-full bg-[#00D084] live-dot" />
                   <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[#00A468]" />
                 </span>
-                BRVM Composite · En direct
+                BRVM Composite · {t('home.live_badge')}
               </div>
 
               <div className="mt-4 flex items-baseline gap-4 flex-wrap">
@@ -134,8 +138,8 @@ export default function Home() {
 
             {/* Discover — Top movers */}
             <section className="mt-14" data-testid="section-movers">
-              <h2 className="text-[24px] md:text-[26px] font-bold tracking-tight">Découvrir</h2>
-              <h3 className="mt-1 text-[14px] font-medium text-[#6B6B6B]">Plus fortes variations</h3>
+              <h2 className="text-[24px] md:text-[26px] font-bold tracking-tight">{t('home.discover')}</h2>
+              <h3 className="mt-1 text-[14px] font-medium text-[#6B6B6B]">{t('home.top_movers')}</h3>
 
               <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
                 {movers.slice(0, 5).map((m, i) => (
@@ -154,10 +158,10 @@ export default function Home() {
               <div className="flex items-end justify-between gap-4 mb-5">
                 <div>
                   <h2 className="text-[24px] md:text-[26px] font-bold tracking-tight leading-none">
-                    Toutes les valeurs BRVM
+                    {t('home.all_stocks')}
                   </h2>
                   <p className="mt-1.5 text-[13px] text-[#6B6B6B]">
-                    47 valeurs cotées à la Bourse Régionale des Valeurs Mobilières
+                    {t('home.all_stocks_sub', { count: liveStocks.length })}
                   </p>
                 </div>
               </div>
@@ -169,7 +173,7 @@ export default function Home() {
           <aside className="hidden lg:block">
             <div className="sticky top-[76px] pt-10 pb-8">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[15px] font-bold">Marchés BRVM</h3>
+                <h3 className="text-[15px] font-bold">{t('home.sidebar_title')}</h3>
                 <Dropdown
                   options={SORT_OPTIONS}
                   value={sidebarSort}
@@ -227,6 +231,7 @@ function MoverCard({ stock, rank }: { stock: Stock; rank: number }) {
 
 function SidebarStockRow({ stock }: { stock: Stock }) {
   const positive = stock.changePct >= 0;
+  const { currency } = useExchange();
   return (
     <Link
       to={`/stock/${stock.ticker}`}
@@ -235,7 +240,7 @@ function SidebarStockRow({ stock }: { stock: Stock }) {
       <Logo ticker={stock.ticker} size={34} />
       <div className="flex-1 min-w-0">
         <div className="text-[13.5px] font-semibold truncate leading-tight">{stock.name}</div>
-        <div className="text-[12px] text-[#6B6B6B] num mt-0.5">{formatFcfa(stock.price)}</div>
+        <div className="text-[12px] text-[#6B6B6B] num mt-0.5">{formatCurrency(stock.price, currency)}</div>
       </div>
       <div className={`text-[13px] font-bold num shrink-0 ${positive ? 'text-[#00A468]' : 'text-[#E23A3A]'}`}>
         {positive ? '+' : ''}{stock.changePct.toFixed(2)} %

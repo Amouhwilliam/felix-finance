@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Star, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import PriceChart from '../components/PriceChart';
 import type { ChartPeriod, ChartDataPoint } from '../components/PriceChart';
 import Logo from '../components/Logo';
 import { getStockDetail, relatedStocks } from '../data/mockData';
 import { api } from '../services/api';
-import { formatFcfa, formatPct } from '../lib/format';
+import { formatCurrency, formatFcfa, formatPct } from '../lib/format';
+import { useExchange } from '../contexts/ExchangeContext';
 import type { AIInsightDTO } from '../services/api';
 import type { Stock, Dividend, CalendarEvent } from '../types';
 
-const PERIODS: ChartPeriod[] = ['1J', '1S', '1M', '3M', '1A', '5A'];
+const PERIOD_KEYS: ChartPeriod[] = ['1J', '1S', '1M', '3M', '1A', '5A'];
 
 const PERIOD_TO_API_RANGE: Record<ChartPeriod, string | null> = {
   '1J': null,
@@ -50,6 +52,8 @@ function deriveXLabels(data: ChartDataPoint[], period: ChartPeriod): string[] {
 export default function StockDetail() {
   const { ticker } = useParams<{ ticker: string }>();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const { currency } = useExchange();
 
   const mockStock = getStockDetail(ticker ?? '');
   const related = relatedStocks(ticker ?? '', 4);
@@ -143,21 +147,30 @@ export default function StockDetail() {
   if (!stock) {
     return (
       <div className="mx-auto max-w-shell px-6 lg:px-10 py-24 text-center">
-        <p className="text-[#6B6B6B] mb-4">Valeur introuvable.</p>
+        <p className="text-[#6B6B6B] mb-4">{t('stock.not_found')}</p>
         <Link to="/" className="text-[#0A0A0A] font-semibold underline">
-          Retour aux marchés
+          {t('stock.back_to_markets')}
         </Link>
       </div>
     );
   }
 
+  const PERIOD_LABEL: Record<ChartPeriod, string> = {
+    '1J': t('stock.period_1d'),
+    '1S': t('stock.period_1w'),
+    '1M': t('stock.period_1m'),
+    '3M': t('stock.period_3m'),
+    '1A': t('stock.period_1y'),
+    '5A': t('stock.period_5y'),
+  };
+
   const PERIOD_SINCE: Record<ChartPeriod, string> = {
-    '1J': 'Depuis 09:00',
-    '1S': 'Sur 1 semaine',
-    '1M': 'Sur 1 mois',
-    '3M': 'Sur 3 mois',
-    '1A': 'Sur 1 an',
-    '5A': 'Sur 5 ans',
+    '1J': t('stock.since_open'),
+    '1S': t('stock.over_1w'),
+    '1M': t('stock.over_1m'),
+    '3M': t('stock.over_3m'),
+    '1A': t('stock.over_1y'),
+    '5A': t('stock.over_5y'),
   };
 
   const positive = displayChangePct >= 0;
@@ -176,7 +189,7 @@ export default function StockDetail() {
           className="inline-flex items-center gap-1 text-[13px] text-[#6B6B6B] hover:text-[#0A0A0A] transition-colors mb-5"
           data-testid="btn-back"
         >
-          <ChevronLeft size={15} strokeWidth={2} /> Retour
+          <ChevronLeft size={15} strokeWidth={2} /> {t('stock.back')}
         </button>
 
         {/* Header */}
@@ -186,7 +199,7 @@ export default function StockDetail() {
             onClick={() => setStarred((s) => !s)}
             className="w-9 h-9 rounded-full hover:bg-[#F5F5F7] flex items-center justify-center transition-colors"
             data-testid="btn-star"
-            aria-label="Favori"
+            aria-label={t('stock.favorite')}
           >
             <Star
               size={19}
@@ -202,17 +215,17 @@ export default function StockDetail() {
         </h1>
 
         <div className="mt-1 text-[46px] md:text-[52px] font-black num tracking-[-0.03em] leading-none">
-          {formatFcfa(stock.price)}
+          {formatCurrency(stock.price, currency)}
         </div>
 
         <div className={`mt-2.5 flex items-center gap-2 text-[14.5px] font-semibold num ${changeColor}`} data-testid="stock-change">
-          {positive ? '▲' : '▼'} {formatFcfa(absChange)} ({positive ? '+' : ''}{displayChangePct.toFixed(2)} %)
+          {positive ? '▲' : '▼'} {formatCurrency(absChange, currency)} ({positive ? '+' : ''}{displayChangePct.toFixed(2)} %)
           <span className="text-[#6B6B6B] font-normal text-[13px]">· {PERIOD_SINCE[period]}</span>
         </div>
 
         {/* Period selector */}
         <div className="mt-7 flex items-center gap-1">
-          {PERIODS.map((p) => (
+          {PERIOD_KEYS.map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -223,7 +236,7 @@ export default function StockDetail() {
               }`}
               data-testid={`period-${p}`}
             >
-              {p}
+              {PERIOD_LABEL[p]}
             </button>
           ))}
         </div>
@@ -255,7 +268,7 @@ export default function StockDetail() {
         {/* ── DIVIDENDS ── */}
         <section className="mt-14" data-testid="section-dividends">
           <button className="flex items-center gap-1.5 group mb-5">
-            <h2 className="text-[20px] font-bold tracking-tight">Dividendes</h2>
+            <h2 className="text-[20px] font-bold tracking-tight">{t('stock.dividends')}</h2>
             <ChevronRight size={18} className="text-[#6B6B6B] group-hover:translate-x-0.5 transition-transform" />
           </button>
           <ul className="space-y-3.5">
@@ -276,12 +289,16 @@ export default function StockDetail() {
 
         {/* ── ANALYSTS ── */}
         <section className="mt-14" data-testid="section-analysts">
-          <h2 className="text-[20px] font-bold tracking-tight">Recommandations</h2>
+          <h2 className="text-[20px] font-bold tracking-tight">{t('stock.analysts')}</h2>
           <div className="mt-5 text-[40px] font-bold num tracking-tight leading-none">
-            {formatFcfa(stock.targetPrice)}
+            {formatCurrency(stock.targetPrice, currency)}
           </div>
           <p className="mt-2 text-[13px] text-[#6B6B6B] max-w-lg">
-            Objectif de cours moyen. Estimation haute {formatFcfa(Math.round(stock.targetPrice * 1.18))}, basse {formatFcfa(Math.round(stock.targetPrice * 0.82))}. Suivi par {stock.analysts.count} analystes.
+            {t('stock.analyst_target', {
+              high: formatCurrency(Math.round(stock.targetPrice * 1.18), currency),
+              low: formatCurrency(Math.round(stock.targetPrice * 0.82), currency),
+              count: stock.analysts.count,
+            })}
           </p>
 
           <div className="mt-5">
@@ -292,15 +309,15 @@ export default function StockDetail() {
             </div>
             <div className="mt-4 grid grid-cols-3">
               <div>
-                <div className="text-[13px] font-semibold text-[#00A468]">Acheter</div>
+                <div className="text-[13px] font-semibold text-[#00A468]">{t('stock.buy')}</div>
                 <div className="text-[22px] font-bold num">{stock.analysts.buy} %</div>
               </div>
               <div>
-                <div className="text-[13px] font-semibold text-[#6B6B6B]">Conserver</div>
+                <div className="text-[13px] font-semibold text-[#6B6B6B]">{t('stock.hold')}</div>
                 <div className="text-[22px] font-bold num">{stock.analysts.hold} %</div>
               </div>
               <div>
-                <div className="text-[13px] font-semibold text-[#E23A3A]">Vendre</div>
+                <div className="text-[13px] font-semibold text-[#E23A3A]">{t('stock.sell')}</div>
                 <div className="text-[22px] font-bold num">{stock.analysts.sell} %</div>
               </div>
             </div>
@@ -309,7 +326,7 @@ export default function StockDetail() {
 
         {/* ── EVENTS ── */}
         <section className="mt-14" data-testid="section-events">
-          <h2 className="text-[20px] font-bold tracking-tight mb-5">Événements à venir</h2>
+          <h2 className="text-[20px] font-bold tracking-tight mb-5">{t('stock.events')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {stock.events.map((e, i) => (
               <EventCard key={i} event={e} />
@@ -319,7 +336,7 @@ export default function StockDetail() {
 
         {/* ── RELATED ── */}
         <section className="mt-14" data-testid="section-related">
-          <h2 className="text-[20px] font-bold tracking-tight mb-5">Valeurs similaires</h2>
+          <h2 className="text-[20px] font-bold tracking-tight mb-5">{t('stock.related')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {related.map((r) => (
               <RelatedCard key={r.ticker} stock={r} />
@@ -329,10 +346,10 @@ export default function StockDetail() {
 
         {/* ── ABOUT ── */}
         <section className="mt-14">
-          <h2 className="text-[20px] font-bold tracking-tight mb-4">À propos</h2>
+          <h2 className="text-[20px] font-bold tracking-tight mb-4">{t('stock.about')}</h2>
           <p className="text-[14px] text-[#0A0A0A]/80 leading-relaxed max-w-3xl">{stock.about}</p>
           <p className="mt-3 text-[12px] text-[#A1A1A6]">
-            Cotations fictives — démonstration d&apos;interface.
+            {t('stock.disclaimer')}
           </p>
         </section>
       </main>
@@ -342,34 +359,34 @@ export default function StockDetail() {
         <div className="lg:sticky lg:top-[76px] space-y-3 pt-6">
           {/* Sign-up CTA */}
           <div className="rounded-[16px] border border-black/[0.08] p-6" data-testid="visitor-cta">
-            <h3 className="text-[17px] font-bold mb-1">Investissez dans {stock.name}</h3>
+            <h3 className="text-[17px] font-bold mb-1">{t('stock.cta_title', { name: stock.name })}</h3>
             <p className="text-[13px] text-[#6B6B6B] mb-5 leading-relaxed">
-              Créez votre compte Felix pour acheter et vendre des actions BRVM sans frais de courtage, directement depuis votre téléphone.
+              {t('stock.cta_body')}
             </p>
             <button
               className="w-full h-[46px] rounded-full bg-[#0A0A0A] text-white text-[14px] font-semibold hover:bg-[#222] transition-colors"
               data-testid="btn-create-account"
             >
-              Créer un compte
+              {t('stock.create_account')}
             </button>
             <button
               className="w-full h-[46px] rounded-full mt-2 text-[#0A0A0A] text-[14px] font-semibold hover:bg-[#F5F5F7] transition-colors"
               data-testid="btn-login-side"
             >
-              Se connecter
+              {t('stock.login')}
             </button>
           </div>
 
           {/* Investir régulièrement CTA */}
           <div className="rounded-[16px] border border-black/[0.08] p-6">
             <h3 className="text-[16px] font-bold leading-snug mb-1">
-              Investissez régulièrement et faites croître votre patrimoine
+              {t('stock.plan_title')}
             </h3>
             <p className="text-[12.5px] text-[#6B6B6B] mt-2 leading-relaxed">
-              Les plans d&apos;investissement automatique sont gratuits pour toujours.
+              {t('stock.plan_body')}
             </p>
             <button className="w-full h-[44px] rounded-full mt-4 bg-[#F5F5F7] hover:bg-[#EBEBEF] text-[#0A0A0A] text-[13.5px] font-semibold transition-colors">
-              Créer un plan
+              {t('stock.create_plan')}
             </button>
           </div>
 
@@ -429,30 +446,36 @@ function EventCard({ event }: { event: CalendarEvent }) {
   );
 }
 
-const SENTIMENT_CONFIG = {
-  bullish: { label: 'Haussier', color: 'text-[#00A468]', bg: 'bg-[#F0FBF6]', dot: '#00D084' },
-  neutral: { label: 'Neutre',   color: 'text-[#6B6B6B]', bg: 'bg-[#F5F5F7]', dot: '#A1A1A6' },
-  bearish: { label: 'Baissier', color: 'text-[#E23A3A]', bg: 'bg-[#FFF3F3]', dot: '#E23A3A' },
-};
-
 function AIInsightSection({ insight }: { insight: AIInsightDTO }) {
-  const cfg = SENTIMENT_CONFIG[insight.sentiment] ?? SENTIMENT_CONFIG.neutral;
-  const generated = new Date(insight.generated_at).toLocaleDateString('fr-FR', {
+  const { t, i18n } = useTranslation();
+
+  const SENTIMENT_CONFIG = {
+    bullish: { label: t('stock.sentiment_bullish'), color: 'text-[#00A468]', bg: 'bg-[#F0FBF6]' },
+    neutral: { label: t('stock.sentiment_neutral'), color: 'text-[#6B6B6B]', bg: 'bg-[#F5F5F7]' },
+    bearish: { label: t('stock.sentiment_bearish'), color: 'text-[#E23A3A]', bg: 'bg-[#FFF3F3]' },
+  };
+
+  const cfg = SENTIMENT_CONFIG[insight.sentiment as keyof typeof SENTIMENT_CONFIG] ?? SENTIMENT_CONFIG.neutral;
+  const locale = i18n.language === 'en' ? 'en-GB' : 'fr-FR';
+  const generated = new Date(insight.generated_at).toLocaleDateString(locale, {
     day: 'numeric', month: 'long', year: 'numeric',
   });
+  const insightText = i18n.language === 'en'
+    ? (insight.insight_text_en ?? insight.insight_text)
+    : insight.insight_text;
 
   return (
     <section className="mt-14" data-testid="section-ai-insight">
       <div className="flex items-center gap-2 mb-5">
         <Sparkles size={18} strokeWidth={1.8} className="text-[#6B6B6B]" />
-        <h2 className="text-[20px] font-bold tracking-tight">Analyse IA</h2>
+        <h2 className="text-[20px] font-bold tracking-tight">{t('stock.ai_title')}</h2>
         <span className={`ml-1 px-2.5 py-0.5 rounded-full text-[12px] font-semibold ${cfg.bg} ${cfg.color}`}>
           {cfg.label}
         </span>
       </div>
 
       <p className="text-[14px] text-[#0A0A0A]/85 leading-relaxed max-w-2xl">
-        {insight.insight_text}
+        {insightText}
       </p>
 
       {/* Buy / Hold / Sell bar */}
@@ -464,22 +487,25 @@ function AIInsightSection({ insight }: { insight: AIInsightDTO }) {
         </div>
         <div className="mt-3 grid grid-cols-3">
           <div>
-            <div className="text-[13px] font-semibold text-[#00A468]">Acheter</div>
+            <div className="text-[13px] font-semibold text-[#00A468]">{t('stock.buy')}</div>
             <div className="text-[18px] font-bold num">{insight.buy_pct} %</div>
           </div>
           <div>
-            <div className="text-[13px] font-semibold text-[#6B6B6B]">Conserver</div>
+            <div className="text-[13px] font-semibold text-[#6B6B6B]">{t('stock.hold')}</div>
             <div className="text-[18px] font-bold num">{insight.hold_pct} %</div>
           </div>
           <div>
-            <div className="text-[13px] font-semibold text-[#E23A3A]">Vendre</div>
+            <div className="text-[13px] font-semibold text-[#E23A3A]">{t('stock.sell')}</div>
             <div className="text-[18px] font-bold num">{insight.sell_pct} %</div>
           </div>
         </div>
       </div>
 
       <p className="mt-4 text-[11.5px] text-[#A1A1A6] leading-relaxed max-w-lg">
-        Suggéré par IA ({insight.provider ?? 'modèle IA'}) basé sur les données de marché et l&apos;opinion publique — mis à jour le {generated}. Pas un conseil financier.
+        {t('stock.ai_disclaimer', {
+          provider: insight.provider ?? t('stock.ai_provider_default'),
+          date: generated,
+        })}
       </p>
     </section>
   );

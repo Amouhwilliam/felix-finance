@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { marketStats as mockMarketStats } from '../data/mockData';
-import { formatCompactFcfa } from '../lib/format';
+import { formatCompactCurrency } from '../lib/format';
+import { useExchange } from '../contexts/ExchangeContext';
 
 interface StatItem {
   label: string;
@@ -11,6 +13,8 @@ interface StatItem {
 
 export default function MarketStatBar() {
   const [stats, setStats] = useState(mockMarketStats());
+  const { t } = useTranslation();
+  const { currency } = useExchange();
 
   useEffect(() => {
     api.marketStats('BRVM')
@@ -27,11 +31,11 @@ export default function MarketStatBar() {
   }, []);
 
   const items: StatItem[] = [
-    { label: 'Capitalisation totale', value: formatCompactFcfa(stats.mktCapBn * 1e9) },
-    { label: 'Volume journalier', value: formatCompactFcfa(stats.dailyVolume) },
-    { label: 'Nombre de valeurs', value: `${stats.total}` },
-    { label: 'Valeurs en hausse', value: `${stats.up}`, accent: 'mint' },
-    { label: 'Valeurs en baisse', value: `${stats.down}`, accent: 'loss' },
+    { label: t('stats.market_cap'), value: formatCompactCurrency(stats.mktCapBn * 1e9, currency) },
+    { label: t('stats.daily_volume'), value: formatCompactCurrency(stats.dailyVolume, currency) },
+    { label: t('stats.total_stocks'), value: `${stats.total}` },
+    { label: t('stats.gainers'), value: `${stats.up}`, accent: 'mint' },
+    { label: t('stats.losers'), value: `${stats.down}`, accent: 'loss' },
   ];
 
   return (
