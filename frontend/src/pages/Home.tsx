@@ -30,8 +30,9 @@ export default function Home() {
   const [period, setPeriod] = useState('1D');
   const [sidebarSort, setSidebarSort] = useState('change_desc');
   const [liveStocks, setLiveStocks] = useState<Stock[]>(STOCKS);
+  const [computedAt, setComputedAt] = useState<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { currency } = useExchange();
 
   const PERIODS = [
@@ -48,17 +49,33 @@ export default function Home() {
     { value: 'cap_desc', label: t('home.sort_cap') },
   ];
 
-  const fetchQuotes = () => {
+  const fetchData = () => {
     api.quotes('BRVM')
       .then((q) => { if (q.length > 0) setLiveStocks(quotesToStocks(q)); })
+      .catch(() => {/* keep current */});
+    api.marketStats('BRVM')
+      .then((s) => setComputedAt(new Date(s.computed_at)))
       .catch(() => {/* keep current */});
   };
 
   useEffect(() => {
-    fetchQuotes();
-    intervalRef.current = setInterval(fetchQuotes, 30_000);
+    fetchData();
+    intervalRef.current = setInterval(fetchData, 30_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
+
+  // Average % change across all live stocks — proxy for market direction
+  const avgChangePct = useMemo(() => {
+    if (!liveStocks.length) return 0;
+    return liveStocks.reduce((s, x) => s + x.changePct, 0) / liveStocks.length;
+  }, [liveStocks]);
+
+  // Last update time in GMT
+  const updatedTime = computedAt
+    ? computedAt.toLocaleTimeString(i18n.language === 'en' ? 'en-GB' : 'fr-FR', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Abidjan',
+      })
+    : null;
 
   const movers = useMemo(
     () => [...liveStocks].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)).slice(0, 10),
@@ -88,16 +105,19 @@ export default function Home() {
               </div>
 
               <div className="mt-4 flex items-baseline gap-4 flex-wrap">
-                <div className="text-[54px] md:text-[62px] font-black num tracking-[-0.03em] leading-none">
-                  248,17
-                </div>
-                <div className="text-[17px] font-bold num text-[#00A468]">
-                  ▲ +2,67 pts <span className="opacity-70 font-medium">(+1,08 %)</span>
+                <div className={`text-[17px] font-bold num ${avgChangePct >= 0 ? 'text-[#00A468]' : 'text-[#E23A3A]'}`}>
+                  {avgChangePct >= 0 ? '▲' : '▼'} {avgChangePct >= 0 ? '+' : ''}{avgChangePct.toFixed(2)} %
+                  <span className="opacity-60 font-normal text-[13px] ml-1">
+                    {i18n.language === 'en' ? 'avg. change' : 'variation moy.'}
+                  </span>
                 </div>
               </div>
 
               <div className="mt-2.5 text-[13px] text-[#6B6B6B] num">
-                47 valeurs · Mise à jour aujourd&apos;hui 14:32 GMT
+                {liveStocks.length} {i18n.language === 'en' ? 'stocks' : 'valeurs'}
+                {updatedTime && (
+                  <> · {i18n.language === 'en' ? 'Updated' : 'Mise à jour'} {updatedTime} GMT</>
+                )}
               </div>
 
               <div className="mt-5 flex items-center gap-1 flex-wrap">
