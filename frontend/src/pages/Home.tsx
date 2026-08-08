@@ -32,6 +32,7 @@ export default function Home() {
   const [sidebarSort, setSidebarSort] = useState('change_desc');
   const [liveStocks, setLiveStocks] = useState<Stock[]>(STOCKS);
   const [topMovers, setTopMovers] = useState<TopMoverDTO[]>([]);
+  const [moversLoading, setMoversLoading] = useState(true);
   const [computedAt, setComputedAt] = useState<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { t, i18n } = useTranslation();
@@ -60,7 +61,8 @@ export default function Home() {
       .catch(() => {});
     api.topMovers('BRVM', 7, 10)
       .then((m) => { if (m.length > 0) setTopMovers(m); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setMoversLoading(false));
   };
 
   useEffect(() => {
@@ -160,18 +162,33 @@ export default function Home() {
             {/* Discover — Top movers */}
             <section className="mt-14" data-testid="section-movers">
               <h2 className="text-[24px] md:text-[26px] font-bold tracking-tight">{t('home.discover')}</h2>
-              <h3 className="mt-1 text-[14px] font-medium text-[#6B6B6B]">{t('home.top_movers')}</h3>
+              <h3 className="mt-1 text-[14px] font-medium text-[#6B6B6B]">
+                {i18n.language === 'en' ? 'Best & worst over the last 7 days' : 'Meilleures et pires variations sur 7 jours'}
+              </h3>
 
-              <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-                {topMovers.slice(0, 5).map((m) => (
-                  <MoverCard key={m.ticker} mover={m} />
-                ))}
-              </div>
-              <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-                {topMovers.slice(5, 10).map((m) => (
-                  <MoverCard key={m.ticker} mover={m} />
-                ))}
-              </div>
+              {moversLoading ? (
+                <>
+                  <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                    {Array.from({ length: 5 }).map((_, i) => <MoverSkeleton key={i} />)}
+                  </div>
+                  <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                    {Array.from({ length: 5 }).map((_, i) => <MoverSkeleton key={i} />)}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                    {topMovers.slice(0, 5).map((m) => (
+                      <MoverCard key={m.ticker} mover={m} />
+                    ))}
+                  </div>
+                  <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                    {topMovers.slice(5, 10).map((m) => (
+                      <MoverCard key={m.ticker} mover={m} />
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
 
             {/* All stocks table */}
@@ -211,6 +228,19 @@ export default function Home() {
             </div>
           </aside>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MoverSkeleton() {
+  return (
+    <div className="rounded-[14px] bg-[#F7F7F8] border border-black/[0.04] px-4 py-4 min-h-[148px] animate-pulse">
+      <div className="w-9 h-9 rounded-full bg-black/[0.07]" />
+      <div className="mt-4 space-y-2">
+        <div className="h-3 w-3/4 rounded bg-black/[0.07]" />
+        <div className="h-2.5 w-1/2 rounded bg-black/[0.05]" />
+        <div className="h-3 w-1/3 rounded bg-black/[0.07] mt-3" />
       </div>
     </div>
   );
