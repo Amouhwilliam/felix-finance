@@ -1,19 +1,27 @@
 # Felix Finance — dev shortcuts
-# Usage: make <target>
-
-.PHONY: up down build restart logs logs-all shell-backend shell-db \
-        backfill catchup backfill-status psql
+.PHONY: up dev down build restart logs logs-all psql \
+        backfill catchup backfill-status
 
 # ── Stack ────────────────────────────────────────────────────────────────────
 
+# Start db + backend + frontend (nginx, port 80) + pgAdmin (port 5050)
 up:
-	docker compose up -d
+	docker compose up -d db backend frontend pgadmin
+
+# Start db + backend only (use alongside `make dev` for hot-reload frontend)
+backend:
+	docker compose up -d db backend pgadmin
+
+# Start frontend dev server with hot reload (requires backend already running)
+dev:
+	cd frontend && npm start
+
+# Build images and start everything
+build:
+	docker compose up -d --build db backend frontend pgadmin
 
 down:
 	docker compose down
-
-build:
-	docker compose up -d --build
 
 restart:
 	docker compose restart backend
@@ -25,14 +33,6 @@ logs:
 
 logs-all:
 	docker compose logs -f
-
-# ── Shells ───────────────────────────────────────────────────────────────────
-
-shell-backend:
-	docker compose exec backend sh
-
-shell-db:
-	docker compose exec db sh
 
 # ── Database ─────────────────────────────────────────────────────────────────
 
@@ -49,7 +49,7 @@ backfill:
 catchup:
 	docker compose exec backend python backfill.py --months 2
 
-# Check which tickers are up to date
+# Show last trade_date per ticker
 backfill-status:
 	docker compose exec db psql -U felix -d felix -c "\
 	SELECT ticker, MAX(trade_date) AS last_date \

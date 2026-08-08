@@ -201,21 +201,26 @@ npm start
 
 ### Full stack
 ```bash
-# Start everything (db + backend + frontend + pgAdmin)
-make build        # first time (builds images)
-make up           # subsequent starts
+make build        # first time — build images + start everything
+make up           # start db + backend + frontend (nginx) + pgAdmin
+make dev          # start frontend dev server with hot reload (run alongside `make backend`)
+make backend      # start db + backend + pgAdmin only (pair with `make dev`)
 
-# Common shortcuts
 make logs         # tail backend logs
 make restart      # restart backend only
 make psql         # open PostgreSQL shell
 make down         # stop everything
 ```
 
-Or without Make:
+**Development workflow (hot reload):**
 ```bash
-docker compose up -d --build
-docker compose logs -f backend
+make backend      # terminal 1 — starts db + backend
+make dev          # terminal 2 — starts frontend on http://localhost:3000
+```
+
+**Production / preview:**
+```bash
+make up           # serves built frontend via nginx on http://localhost:80
 ```
 
 ### pgAdmin — database browser
@@ -225,7 +230,7 @@ pgAdmin is included in the stack and starts automatically with `make up`.
 | Field | Value |
 |---|---|
 | URL | http://localhost:5050 |
-| Email | `admin@felix.local` |
+| Email | `admin@felixfinance.com` |
 | Password | `felix_admin` |
 
 Once open, add a server connection:

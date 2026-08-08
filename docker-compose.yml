@@ -61,12 +61,14 @@ services:
     depends_on:
       - db
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@felix.local
+      PGADMIN_DEFAULT_EMAIL: admin@felixfinance.com
       PGADMIN_DEFAULT_PASSWORD: felix_admin
-      PGADMIN_CONFIG_SERVER_MODE: "False"        # single-user mode, no login prompt
+      PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./pgadmin/pgpass:/pgadmin4/pgpass:ro
     ports:
       - "5050:80"
 
