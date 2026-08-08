@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type ChartPeriod = '1J' | '1S' | '1M' | '3M' | '1A' | '5A';
 
@@ -43,6 +44,7 @@ export default function PriceChart({
   width = 720,
   height = 300,
 }: PriceChartProps) {
+  const { t } = useTranslation();
   const positive = changePct >= 0;
   const color = positive ? '#00A468' : '#E23A3A';
   const chartW = width - PAD_LEFT - PAD_RIGHT;
@@ -180,13 +182,16 @@ export default function PriceChart({
     return (
       <div
         style={{ height }}
-        className="w-full flex flex-col items-center justify-center gap-2"
+        className="w-full flex flex-col items-center justify-center gap-3"
         data-testid="price-chart-empty"
       >
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#D1D1D6" strokeWidth="1.5">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#D1D1D6" strokeWidth="1.5">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
         </svg>
-        <span className="text-[13px] text-[#A1A1A6]">Aucune donnée pour cette période</span>
+        <div className="text-center">
+          <p className="text-[13px] text-[#A1A1A6]">{t('stock.no_chart_data')}</p>
+          <p className="text-[12px] text-[#C7C7CC] mt-0.5">{t('stock.no_chart_data_sub')}</p>
+        </div>
       </div>
     );
   }

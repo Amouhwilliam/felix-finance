@@ -54,6 +54,8 @@
     "over_3m": "Over 3 months",
     "over_1y": "Over 1 year",
     "over_5y": "Over 5 years",
+    "no_chart_data": "No price history available",
+    "no_chart_data_sub": "Price data is not yet available for this stock.",
     "dividends": "Dividends",
     "analysts": "Analysts",
     "analyst_target": "Average price target. High estimate {{high}}, low {{low}}. Covered by {{count}} analysts.",

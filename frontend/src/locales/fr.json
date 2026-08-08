@@ -54,6 +54,8 @@
     "over_3m": "Sur 3 mois",
     "over_1y": "Sur 1 an",
     "over_5y": "Sur 5 ans",
+    "no_chart_data": "Historique non disponible",
+    "no_chart_data_sub": "Les données de prix ne sont pas encore disponibles pour cette valeur.",
     "dividends": "Dividendes",
     "analysts": "Recommandations",
     "analyst_target": "Objectif de cours moyen. Estimation haute {{high}}, basse {{low}}. Suivi par {{count}} analystes.",
