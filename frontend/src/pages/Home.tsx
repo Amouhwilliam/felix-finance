@@ -7,6 +7,7 @@ import StockTable from '../components/StockTable';
 import MarketStatBar from '../components/MarketStatBar';
 import { STOCKS } from '../data/mockData';
 import { api } from '../services/api';
+import type { TopMoverDTO } from '../services/api';
 import { formatCurrency, formatPct } from '../lib/format';
 import { useExchange } from '../contexts/ExchangeContext';
 import type { Stock } from '../types';
@@ -30,6 +31,7 @@ export default function Home() {
   const [period, setPeriod] = useState('1D');
   const [sidebarSort, setSidebarSort] = useState('change_desc');
   const [liveStocks, setLiveStocks] = useState<Stock[]>(STOCKS);
+  const [topMovers, setTopMovers] = useState<TopMoverDTO[]>([]);
   const [computedAt, setComputedAt] = useState<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { t, i18n } = useTranslation();
@@ -52,10 +54,13 @@ export default function Home() {
   const fetchData = () => {
     api.quotes('BRVM')
       .then((q) => { if (q.length > 0) setLiveStocks(quotesToStocks(q)); })
-      .catch(() => {/* keep current */});
+      .catch(() => {});
     api.marketStats('BRVM')
       .then((s) => setComputedAt(new Date(s.computed_at)))
-      .catch(() => {/* keep current */});
+      .catch(() => {});
+    api.topMovers('BRVM', 7, 10)
+      .then((m) => { if (m.length > 0) setTopMovers(m); })
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -77,10 +82,6 @@ export default function Home() {
       })
     : null;
 
-  const movers = useMemo(
-    () => [...liveStocks].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)).slice(0, 10),
-    [liveStocks],
-  );
 
   const sidebarStocks = useMemo(() => {
     const s = [...liveStocks];
@@ -162,13 +163,13 @@ export default function Home() {
               <h3 className="mt-1 text-[14px] font-medium text-[#6B6B6B]">{t('home.top_movers')}</h3>
 
               <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-                {movers.slice(0, 5).map((m, i) => (
-                  <MoverCard key={m.ticker} stock={m} rank={i + 1} />
+                {topMovers.slice(0, 5).map((m) => (
+                  <MoverCard key={m.ticker} mover={m} />
                 ))}
               </div>
               <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-                {movers.slice(5, 10).map((m, i) => (
-                  <MoverCard key={m.ticker} stock={m} rank={i + 6} />
+                {topMovers.slice(5, 10).map((m) => (
+                  <MoverCard key={m.ticker} mover={m} />
                 ))}
               </div>
             </section>
@@ -215,34 +216,32 @@ export default function Home() {
   );
 }
 
-function MoverCard({ stock, rank }: { stock: Stock; rank: number }) {
-  const positive = stock.changePct >= 0;
+function MoverCard({ mover }: { mover: TopMoverDTO }) {
+  const mock = STOCKS.find((s) => s.ticker === mover.ticker);
+  const positive = mover.change_pct_7d >= 0;
   return (
     <Link
-      to={`/stock/${stock.ticker}`}
+      to={`/stock/${mover.ticker}`}
       className="relative rounded-[14px] bg-[#F7F7F8] hover:bg-[#EFEFEF] border border-black/[0.04] px-4 py-4 flex flex-col justify-between min-h-[148px] overflow-hidden transition-colors"
-      data-testid={`mover-${stock.ticker}`}
+      data-testid={`mover-${mover.ticker}`}
     >
-      {/* Rank watermark */}
       <span
         className="absolute -right-1 -top-2 text-[72px] font-black leading-none select-none pointer-events-none"
         style={{ color: 'rgba(0,0,0,0.045)', letterSpacing: '-0.04em' }}
         aria-hidden="true"
       >
-        {rank}
+        {mover.rank}
       </span>
 
-      <Logo ticker={stock.ticker} size={34} />
+      <Logo ticker={mover.ticker} size={34} />
 
       <div>
         <div className="text-[13px] font-semibold leading-snug truncate text-[#0A0A0A] mt-3">
-          {stock.name}
+          {mock?.name ?? mover.ticker}
         </div>
-        <div className="text-[11.5px] text-[#A1A1A6] mt-0.5 truncate">{stock.subIndustry}</div>
-        <div
-          className={`mt-2 text-[13.5px] font-bold num ${positive ? 'text-[#00A468]' : 'text-[#E23A3A]'}`}
-        >
-          {positive ? '▲' : '▼'} {formatPct(stock.changePct, { withSign: false })}
+        <div className="text-[11.5px] text-[#A1A1A6] mt-0.5 truncate">{mock?.subIndustry ?? ''}</div>
+        <div className={`mt-2 text-[13.5px] font-bold num ${positive ? 'text-[#00A468]' : 'text-[#E23A3A]'}`}>
+          {positive ? '▲' : '▼'} {formatPct(mover.change_pct_7d, { withSign: false })}
         </div>
       </div>
     </Link>

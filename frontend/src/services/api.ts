@@ -49,6 +49,15 @@ export interface MarketStats {
   computed_at: string;
 }
 
+export interface TopMoverDTO {
+  ticker: string;
+  exchange_code: string;
+  current_price: number;
+  week_price: number;
+  change_pct_7d: number;
+  rank: number;
+}
+
 export interface AIInsightDTO {
   ticker: string;
   exchange_code: string;
@@ -93,6 +102,10 @@ export const api = {
   /** Aggregate market statistics */
   marketStats: (exchange: Exchange = "BRVM") =>
     get<MarketStats>(`/v1/${exchange}/market-stats`),
+
+  /** Top movers ranked by absolute % change over the last N days (default 7) */
+  topMovers: (exchange: Exchange = "BRVM", days = 7, limit = 10) =>
+    get<TopMoverDTO[]>(`/v1/${exchange}/top-movers?days=${days}&limit=${limit}`),
 
   /** AI-generated weekly insight for a stock */
   aiInsight: (exchange: Exchange = "BRVM", ticker: string) =>

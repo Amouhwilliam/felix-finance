@@ -22,7 +22,7 @@ from sqlalchemy import select, func, text
 from config import settings
 from database import engine, get_db, Base
 from models import Quote, IntradaySnapshot, PriceHistory, Stock, AIInsight, Exchange
-from schemas import QuoteOut, HistoryPointOut, IntradayPointOut, MarketStatsOut, AIInsightOut
+from schemas import QuoteOut, HistoryPointOut, IntradayPointOut, MarketStatsOut, AIInsightOut, TopMoverOut
 from scraper import start_scheduler
 
 logging.basicConfig(
@@ -287,6 +287,53 @@ async def get_market_stats(exchange: str, db: AsyncSession = Depends(get_db)):
         total_volume_xof=total_vol or None,
         computed_at=datetime.now(timezone.utc),
     )
+
+
+@app.get("/v1/{exchange}/top-movers", response_model=list[TopMoverOut])
+async def get_top_movers(
+    exchange: str,
+    days: int = Query(default=7, ge=1, le=365),
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rank stocks by absolute % price change over the last `days` calendar days."""
+    sql = text("""
+        WITH latest AS (
+            SELECT DISTINCT ON (ticker, exchange_code)
+                ticker, exchange_code, close AS current_price, trade_date AS current_date
+            FROM price_history
+            WHERE exchange_code = :exchange
+            ORDER BY ticker, exchange_code, trade_date DESC
+        ),
+        week_ago AS (
+            SELECT DISTINCT ON (ticker, exchange_code)
+                ticker, exchange_code, close AS week_price, trade_date AS week_date
+            FROM price_history
+            WHERE exchange_code = :exchange
+              AND trade_date <= CURRENT_DATE - CAST(:days AS INTEGER) * INTERVAL '1 day'
+            ORDER BY ticker, exchange_code, trade_date DESC
+        ),
+        ranked AS (
+            SELECT
+                l.ticker,
+                l.exchange_code,
+                l.current_price,
+                w.week_price,
+                ROUND(((l.current_price - w.week_price) / w.week_price * 100)::numeric, 2) AS change_pct_7d,
+                ROW_NUMBER() OVER (
+                    ORDER BY ABS((l.current_price - w.week_price) / w.week_price) DESC
+                ) AS rank
+            FROM latest l
+            JOIN week_ago w ON l.ticker = w.ticker AND l.exchange_code = w.exchange_code
+            WHERE w.week_price > 0
+        )
+        SELECT * FROM ranked
+        ORDER BY rank
+        LIMIT :limit
+    """)
+    result = await db.execute(sql, {"exchange": exchange.upper(), "days": days, "limit": limit})
+    rows = result.mappings().all()
+    return [TopMoverOut(**dict(r)) for r in rows]
 
 
 @app.get("/v1/{exchange}/stocks/{ticker}/ai-insight", response_model=AIInsightOut)

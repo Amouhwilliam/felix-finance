@@ -50,6 +50,15 @@ class MarketStatsOut(BaseModel):
     computed_at: datetime
 
 
+class TopMoverOut(BaseModel):
+    ticker: str
+    exchange_code: str
+    current_price: float
+    week_price: float
+    change_pct_7d: float
+    rank: int
+
+
 class AIInsightOut(BaseModel):
     ticker: str
     exchange_code: str
