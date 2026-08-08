@@ -201,10 +201,46 @@ npm start
 
 ### Full stack
 ```bash
-docker compose up -d --build
+# Start everything (db + backend + frontend + pgAdmin)
+make build        # first time (builds images)
+make up           # subsequent starts
 
-# View logs
+# Common shortcuts
+make logs         # tail backend logs
+make restart      # restart backend only
+make psql         # open PostgreSQL shell
+make down         # stop everything
+```
+
+Or without Make:
+```bash
+docker compose up -d --build
 docker compose logs -f backend
+```
+
+### pgAdmin — database browser
+
+pgAdmin is included in the stack and starts automatically with `make up`.
+
+| Field | Value |
+|---|---|
+| URL | http://localhost:5050 |
+| Email | `admin@felix.local` |
+| Password | `felix_admin` |
+
+Once open, add a server connection:
+- **Host**: `db`
+- **Port**: `5432`
+- **Database**: `felix`
+- **Username**: `felix`
+- **Password**: `felix`
+
+### Backfill shortcuts
+
+```bash
+make backfill        # full 5-year backfill (~90 min) — run once after first deploy
+make catchup         # last 2 months only (~3 min)    — use after any downtime
+make backfill-status # show last trade_date per ticker
 ```
 
 ### Historical backfill
