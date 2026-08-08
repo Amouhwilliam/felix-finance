@@ -287,42 +287,6 @@ export default function StockDetail() {
           <AIInsightSection insight={aiInsight} />
         )}
 
-        {/* ── ANALYSTS ── */}
-        <section className="mt-14" data-testid="section-analysts">
-          <h2 className="text-[20px] font-bold tracking-tight">{t('stock.analysts')}</h2>
-          <div className="mt-5 text-[40px] font-bold num tracking-tight leading-none">
-            {formatCurrency(stock.targetPrice, currency)}
-          </div>
-          <p className="mt-2 text-[13px] text-[#6B6B6B] max-w-lg">
-            {t('stock.analyst_target', {
-              high: formatCurrency(Math.round(stock.targetPrice * 1.18), currency),
-              low: formatCurrency(Math.round(stock.targetPrice * 0.82), currency),
-              count: stock.analysts.count,
-            })}
-          </p>
-
-          <div className="mt-5">
-            <div className="flex h-[10px] rounded-full overflow-hidden" data-testid="analysts-bar">
-              <div style={{ width: `${stock.analysts.buy}%` }} className="bg-[#00D084]" />
-              <div style={{ width: `${stock.analysts.hold}%` }} className="bg-[#D1D1D6]" />
-              <div style={{ width: `${stock.analysts.sell}%` }} className="bg-[#E23A3A]" />
-            </div>
-            <div className="mt-4 grid grid-cols-3">
-              <div>
-                <div className="text-[13px] font-semibold text-[#00A468]">{t('stock.buy')}</div>
-                <div className="text-[22px] font-bold num">{stock.analysts.buy} %</div>
-              </div>
-              <div>
-                <div className="text-[13px] font-semibold text-[#6B6B6B]">{t('stock.hold')}</div>
-                <div className="text-[22px] font-bold num">{stock.analysts.hold} %</div>
-              </div>
-              <div>
-                <div className="text-[13px] font-semibold text-[#E23A3A]">{t('stock.sell')}</div>
-                <div className="text-[22px] font-bold num">{stock.analysts.sell} %</div>
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* ── EVENTS ── */}
         <section className="mt-14" data-testid="section-events">
