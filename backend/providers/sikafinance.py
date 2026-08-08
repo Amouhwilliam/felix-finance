@@ -47,6 +47,7 @@ TICKER_SUFFIX: dict[str, str] = {
     "SAFC": "sn", "BOAS": "sn",
     "TTLS": "sn",
     "BNBC": "ci",
+    "SVOC": "ci",
 }
 
 BASE_URL = "https://www.sikafinance.com"

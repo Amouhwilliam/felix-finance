@@ -110,6 +110,7 @@ async def _seed_initial_data():
         ("SDSC", "Africa Global Logistics CI", "Transport", "Logistique"),
         ("STAC", "SETAO", "Transport", "Logistique"),
         ("ABJC", "Servair Abidjan", "Transport", "Aviation & Services"),
+        ("SVOC", "Movis CI", "Transport", "Logistique"),
     ]
 
     async with AsyncSessionLocal() as session:
