@@ -1,3 +1,4 @@
+# Environment / secrets
 .env
 .env.*
 *.env
@@ -5,3 +6,16 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/build/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+
+# OS
+.DS_Store
